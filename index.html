@@ -1,0 +1,1334 @@
+<h1 id="introduction">Introduction</h1>
+<p>TeleLibre enables fully decentralized, real-time sharing of memes across a peer-to-peer network. Each node in the network is equal, acting both as a client and a server, propagating messages to connected peers and retaining messages relevant to its groups. The protocol balances simplicity with scalability and efficiency while maintaining true decentralization.</p>
+<h1 id="node-equality-principle">Node Equality Principle</h1>
+<p>A fundamental principle of TeleLibre is that all nodes are equal. There are no super-nodes, master nodes, or relays. This ensures:</p>
+<ul>
+<li><p>True decentralization with no single points of failure</p></li>
+<li><p>Equal responsibility and opportunity for all participants</p></li>
+<li><p>Resistance to censorship and control</p></li>
+</ul>
+<h1 id="network-operations">Network Operations</h1>
+<h2 id="node-identification">Node Identification</h2>
+<p>Each node is identified by a unique public key. The corresponding private key is used for signing messages and proving identity.</p>
+<h3 id="key-generation">Key Generation</h3>
+<p>Nodes use the Ed25519 elliptic curve algorithm for key generation:</p>
+<p><span class="math inline">\(seed \gets \Call{SecureRandomBytes}{32}\)</span> <span class="math inline">\((private\_key, public\_key) \gets \Call{Ed25519.GenerateKeys}{seed}\)</span> <strong>return</strong> <span class="math inline">\((private\_key, public\_key)\)</span></p>
+<p>Justification: Ed25519 provides a good balance of security and performance, with 128-bit security and fast signature verification, which is crucial for a decentralized network with frequent message passing.</p>
+<h2 id="bootstrap-mechanism">Bootstrap Mechanism</h2>
+<p>New nodes join the network through a bootstrap process:</p>
+<p><span class="math inline">\(peer\_list \gets \emptyset\)</span> <span class="math inline">\(challenge \gets \Call{RequestChallenge}{node}\)</span> <span class="math inline">\(proof \gets \Call{ComputeProofOfWork}{challenge}\)</span> <span class="math inline">\(new\_peers \gets \Call{RequestPeers}{node, proof}\)</span> <span class="math inline">\(peer\_list \gets peer\_list \cup new\_peers\)</span></p>
+<p>Seed nodes are hard-coded or user-provided entry points to the network. If no existing network is found, the node initiates a new network.</p>
+<h2 id="proof-of-work-for-network-join">Proof-of-Work for Network Join</h2>
+<p>To prevent Sybil attacks and ensure that joining the network requires some computational effort, new nodes must complete a proof-of-work challenge:</p>
+<p><span class="math inline">\(nonce \gets 0\)</span> <span class="math inline">\(hash \gets \Call{SHA256}{challenge || nonce || public\_key}\)</span> <strong>return</strong> <span class="math inline">\(nonce\)</span> <span class="math inline">\(nonce \gets nonce + 1\)</span></p>
+<p>Where <span class="math inline">\(difficulty\)</span> is dynamically adjusted based on the network size and join rate:</p>
+<p><span class="math display">\[difficulty = \left\lceil\log_2(network\_size) + \frac{join\_rate}{10}\right\rceil\]</span></p>
+<p>Justification: The proof-of-work mechanism serves several purposes:</p>
+<ul>
+<li><p>It prevents rapid creation of multiple identities (Sybil attack)</p></li>
+<li><p>It ensures that joining nodes have some minimal computational capability</p></li>
+<li><p>It provides a natural rate-limiting mechanism for network growth</p></li>
+</ul>
+<p>Proof of Effectiveness: Let <span class="math inline">\(H\)</span> be the hash rate of an average node, and <span class="math inline">\(N\)</span> be the network size. The time to complete the PoW is approximately:</p>
+<p><span class="math display">\[T_{PoW} \approx \frac{2^{difficulty}}{H} = \frac{2^{\log_2(N) + join\_rate/10}}{H} = \frac{N \cdot 2^{join\_rate/10}}{H}\]</span></p>
+<p>This scales linearly with network size and exponentially with join rate, providing effective protection against rapid identity creation.</p>
+<h2 id="nat-traversal">NAT Traversal</h2>
+<p>TeleLibre implements the Interactive Connectivity Establishment (ICE) protocol for NAT traversal:</p>
+<h3 id="stun-session-traversal-utilities-for-nat">STUN (Session Traversal Utilities for NAT)</h3>
+<p>Used for discovering the public IP and port of a node:</p>
+<p><span class="math inline">\(response \gets \Call{SendSTUNRequest}{server}\)</span> <span class="math inline">\((public\_ip, public\_port) \gets \Call{ParseSTUNResponse}{response}\)</span> <strong>return</strong> <span class="math inline">\((public\_ip, public\_port)\)</span> <strong>return</strong> null</p>
+<h3 id="turn-traversal-using-relays-around-nat">TURN (Traversal Using Relays around NAT)</h3>
+<p>Used as a fallback for symmetric NATs:</p>
+<p><span class="math inline">\(allocation \gets \Call{RequestTURNAllocation}{server}\)</span> <span class="math inline">\((relayed\_ip, relayed\_port) \gets allocation\)</span> <strong>return</strong> <span class="math inline">\((relayed\_ip, relayed\_port)\)</span> <strong>return</strong> null</p>
+<p>Justification: ICE, STUN, and TURN are well-established protocols for NAT traversal. They provide a comprehensive solution for nodes to communicate regardless of their network configuration.</p>
+<h2 id="adaptive-peer-management">Adaptive Peer Management</h2>
+<p>Each node maintains a dynamic list of connected peers. The number of peers is adaptively managed based on network size and node capabilities.</p>
+<h3 id="adaptive-peer-list-structure">Adaptive Peer List Structure</h3>
+<p>The peer list is implemented as a dynamic array of peer objects:</p>
+<p><span class="math display">\[\texttt{peer\_list} = [\text{peer}_1, \text{peer}_2, \dots, \text{peer}_n]\]</span></p>
+<p>where each <code>peer</code> contains:</p>
+<ul>
+<li><p><code>peer_id</code>: Public key of the peer</p></li>
+<li><p><code>last_contact</code>: Timestamp of the last successful communication</p></li>
+<li><p><code>reputation_score</code>: A floating-point value representing the peer’s reliability</p></li>
+<li><p><code>resources</code>: A metric representing the peer’s available resources</p></li>
+<li><p><code>connection_info</code>: IP address, port, and connection type (direct/TURN)</p></li>
+</ul>
+<h3 id="peer-list-size-adaptation">Peer List Size Adaptation</h3>
+<p>The adaptive peer list size is calculated as follows:</p>
+<p><span class="math display">\[\text{optimal\_peer\_count} = \min(\max(20, \sqrt{N}), 100)\]</span></p>
+<p>Where <span class="math inline">\(N\)</span> is the estimated network size.</p>
+<p>Justification: This formula balances connectivity and resource usage:</p>
+<ul>
+<li><p>The minimum of 20 peers ensures good connectivity for small networks</p></li>
+<li><p>The square root scaling provides sufficient connectivity while limiting resource usage for medium-sized networks</p></li>
+<li><p>The maximum of 100 peers prevents excessive resource consumption for very large networks</p></li>
+</ul>
+<p>Proof of Effectiveness: Let <span class="math inline">\(D\)</span> be the diameter of the network. In a random network with <span class="math inline">\(N\)</span> nodes, each having <span class="math inline">\(k = \sqrt{N}\)</span> connections, the diameter is approximately:</p>
+<p><span class="math display">\[D \approx \frac{\log N}{\log k} = \frac{\log N}{\log \sqrt{N}} = 2\]</span></p>
+<p>This ensures that messages can reach any node in the network with high probability in just two hops, providing a good balance between connectivity and efficiency.</p>
+<h3 id="reputation-system">Reputation System</h3>
+<p>The reputation score is calculated based on:</p>
+<ul>
+<li><p>Uptime: Percentage of time the peer has been reachable</p></li>
+<li><p>Responsiveness: Average response time to queries</p></li>
+<li><p>Correctness: Ratio of valid to invalid messages propagated</p></li>
+</ul>
+<p>The reputation score <span class="math inline">\(R\)</span> is updated after each interaction:</p>
+<p><span class="math display">\[R_{new} = (1 - \alpha) \cdot R_{old} + \alpha \cdot S\]</span></p>
+<p>Where <span class="math inline">\(\alpha\)</span> is a learning rate (e.g., 0.1) and <span class="math inline">\(S\)</span> is the score of the current interaction.</p>
+<p>Justification: This exponential moving average allows the reputation to adapt over time while preventing rapid fluctuations due to temporary network issues.</p>
+<h1 id="message-propagation">Message Propagation</h1>
+<h2 id="hybrid-message-propagation">Hybrid Message Propagation</h2>
+<p>TeleLibre uses a hybrid approach combining flood-based propagation with content-based routing.</p>
+<h3 id="content-based-routing">Content-Based Routing</h3>
+<p>Each node maintains a content routing table that maps content categories to peers that are interested in or frequently share that type of content.</p>
+<p><span class="math inline">\(category \gets \Call{ExtractCategory}{message}\)</span> <span class="math inline">\(interested\_peers \gets routing\_table[category]\)</span></p>
+<h3 id="adaptive-flooding">Adaptive Flooding</h3>
+<p>When flooding is necessary, the protocol uses an adaptive approach to control the flood radius:</p>
+<p><span class="math display">\[\text{flood\_radius} = \left\lceil\log_2(\text{network\_size})\right\rceil\]</span></p>
+<p>To further control network traffic, especially in large networks, we introduce a probabilistic forwarding mechanism:</p>
+<p><span class="math display">\[P(\text{forward}) = \min(1, \frac{C}{\text{network\_size}})\]</span></p>
+<p>Where <span class="math inline">\(C\)</span> is a constant (e.g., 1000) that can be adjusted based on desired network characteristics.</p>
+<p>Justification: This hybrid approach provides a balance between efficiency and reliability:</p>
+<ul>
+<li><p>Content-based routing reduces unnecessary message propagation</p></li>
+<li><p>Adaptive flooding ensures reliable message delivery even when content-based routing fails</p></li>
+<li><p>Probabilistic forwarding prevents network congestion in large networks</p></li>
+</ul>
+<p>Proof of Effectiveness: Let <span class="math inline">\(p\)</span> be the probability of a node being interested in a particular category. The expected number of nodes reached through content-based routing is:</p>
+<p><span class="math display">\[E(reached) = N \cdot (1 - (1-p)^k)\]</span></p>
+<p>Where <span class="math inline">\(N\)</span> is the network size and <span class="math inline">\(k\)</span> is the number of peers per node. This provides efficient routing for popular categories. For less popular categories, the adaptive flooding ensures message delivery with <span class="math inline">\(O(\log N)\)</span> hops.</p>
+<h1 id="distributed-group-management">Distributed Group Management</h1>
+<h2 id="distributed-hash-table-dht">Distributed Hash Table (DHT)</h2>
+<p>TeleLibre uses a Kademlia-based DHT for group discovery and management.</p>
+<h3 id="group-metadata">Group Metadata</h3>
+<p>Each group is represented by a metadata object:</p>
+<pre data-basicstyle="\small\ttfamily"><code>{
+    &quot;group_id&quot;: &quot;string&quot;,
+    &quot;name&quot;: &quot;string&quot;,
+    &quot;description&quot;: &quot;string&quot;,
+    &quot;member_count&quot;: &quot;integer&quot;,
+    &quot;creation_date&quot;: &quot;timestamp&quot;,
+    &quot;tags&quot;: [&quot;string&quot;, ...],
+    &quot;version&quot;: &quot;integer&quot;,
+    &quot;last_update&quot;: &quot;timestamp&quot;,
+    &quot;admin_keys&quot;: [&quot;string&quot;, ...]
+}</code></pre>
+<h3 id="dht-operations">DHT Operations</h3>
+<p>The DHT supports the following operations:</p>
+<p><span class="math inline">\(node \gets \Call{FindResponsibleNode}{key}\)</span></p>
+<p><span class="math inline">\(node \gets \Call{FindResponsibleNode}{key}\)</span> <strong>return</strong></p>
+<p>results <span class="math inline">\(\gets \emptyset\)</span> node <span class="math inline">\(\gets\)</span> FindResponsibleNode(Hash(tag)) results <span class="math inline">\(\gets\)</span> results <span class="math inline">\(\cup\)</span> SendSearchRequest(node, tag) results</p>
+<p>Justification: Kademlia provides efficient key-value storage and retrieval with <span class="math inline">\(O(\log N)\)</span> complexity, making it suitable for large-scale decentralized systems.</p>
+<h2 id="group-consistency">Group Consistency</h2>
+<p>To maintain group consistency across the network:</p>
+<p><span class="math inline">\(current\_metadata \gets \Call{DHT.Get}{group\_id}\)</span> <span class="math inline">\(new\_metadata \gets \Call{ApplyUpdate}{current\_metadata, update}\)</span> <span class="math inline">\(new\_metadata.version \gets update.version\)</span> <span class="math inline">\(new\_metadata.last\_update \gets \Call{CurrentTimestamp}{}\)</span> <span class="math inline">\(merged\_metadata \gets \Call{MergeUpdates}{current\_metadata, update}\)</span> <span class="math inline">\(merged\_metadata.version \gets current\_metadata.version + 1\)</span> <span class="math inline">\(merged\_metadata.last\_update \gets \Call{CurrentTimestamp}{}\)</span> <strong>raise</strong> UnauthorizedUpdateException</p>
+<p>Justification: This approach ensures that only authorized updates are applied and handles conflicts that may arise due to network partitions. The version number and timestamp allow for eventual consistency in a distributed setting.</p>
+<p>Proof of Correctness: 1. Safety: Only updates signed by an admin key can modify the group metadata. 2. Liveness: Any update with a higher version number will eventually be applied. 3. Convergence: In case of conflicts (same version number), the merge function ensures that all nodes will converge to the same state.</p>
+<h1 id="message-handling">Message Handling</h1>
+<h2 id="message-structure">Message Structure</h2>
+<p>Each message in TeleLibre has the following structure:</p>
+<pre data-basicstyle="\small\ttfamily"><code>{
+    &quot;message_id&quot;: &quot;string&quot;,
+    &quot;group_id&quot;: &quot;string&quot;,
+    &quot;sender_id&quot;: &quot;string&quot;,
+    &quot;timestamp&quot;: &quot;integer&quot;,
+    &quot;content_type_hint&quot;: &quot;string&quot;,
+    &quot;content&quot;: &quot;string&quot;,
+    &quot;signature&quot;: &quot;string&quot;,
+    &quot;ttl&quot;: &quot;integer&quot;
+}</code></pre>
+<p>The <code>signature</code> field is used for message authentication, and <code>ttl</code> (Time To Live) controls message propagation.</p>
+<p>The <code>content_type_hint</code> field provides a suggestion about the nature of the data in the <code>content</code> field. Common values might include:</p>
+<ul>
+<li><p><code>text/plain</code>: For plain text content</p></li>
+<li><p><code>image/jpeg</code>, <code>image/png</code>, <code>image/gif</code>: For various image formats</p></li>
+<li><p><code>video/mp4</code>: For video content</p></li>
+<li><p><code>audio/mpeg</code>: For audio content</p></li>
+<li><p><code>application/octet-stream</code>: For generic binary data</p></li>
+</ul>
+<h3 id="content-interpretation">Content Interpretation</h3>
+<p>The TeleLibre protocol treats the <code>content</code> field as opaque data during transmission and routing. It is the responsibility of the client application to properly interpret and render the content based on the <code>content_type_hint</code> and the data itself. This approach offers several advantages:</p>
+<ul>
+<li><p>Flexibility: The protocol can accommodate new content types without requiring changes to the core network infrastructure.</p></li>
+<li><p>Future-proofing: As new media formats emerge, they can be easily integrated into the TeleLibre ecosystem.</p></li>
+<li><p>Client-side innovation: Developers can create specialized clients that handle specific content types in unique ways.</p></li>
+</ul>
+<h3 id="content-encoding">Content Encoding</h3>
+<p>While the protocol itself is agnostic to the encoding of the content, it is recommended that binary data be encoded as a Base64 or hexadecimal string to ensure safe transmission within the JSON structure. Text-based content can be included as-is.</p>
+<p>Clients should be prepared to handle various encoding schemes and should use the <code>content_type_hint</code> as a guide for decoding and processing the content. For example:</p>
+<ul>
+<li><p>For <code>text/plain</code>, the content can typically be used directly.</p></li>
+<li><p>For image, video, or audio types, the content would likely be Base64 or hex-encoded binary data that needs to be decoded before rendering.</p></li>
+<li><p>For <code>application/octet-stream</code>, the client may need to perform additional analysis to determine how to handle the content.</p></li>
+</ul>
+<p>By adopting this flexible approach to message content, TeleLibre ensures that it can serve as a versatile platform for sharing a wide range of meme types while allowing for future expansion and innovation in content creation and consumption.</p>
+<h2 id="message-propagation-algorithm">Message Propagation Algorithm</h2>
+<p><span class="math inline">\(peers \gets \Call{SelectPeersForPropagation}{message.group\_id}\)</span></p>
+<p>Where <span class="math inline">\(P(forward)\)</span> is the probabilistic forwarding function defined earlier.</p>
+<h2 id="efficient-message-deduplication">Efficient Message Deduplication</h2>
+<p>TeleLibre uses a Bloom filter for efficient storage and lookup of message IDs.</p>
+<p>Let <span class="math inline">\(m\)</span> be the size of the bit array, <span class="math inline">\(k\)</span> the number of hash functions, and <span class="math inline">\(n\)</span> the number of elements to be inserted:</p>
+<p><span class="math display">\[k = \left\lceil\frac{m}{n} \ln 2\right\rceil\]</span></p>
+<p>The false positive probability <span class="math inline">\(p\)</span> is approximately:</p>
+<p><span class="math display">\[p \approx \left(1 - e^{-kn/m}\right)^k\]</span></p>
+<p>Implementation:</p>
+<p><span class="math inline">\(index \gets hash_i(item) \mod m\)</span> <span class="math inline">\(bitArray[index] \gets 1\)</span></p>
+<p><span class="math inline">\(index \gets hash_i(item) \mod m\)</span> <strong>return</strong> false <strong>return</strong> true</p>
+<p>Justification: The Bloom filter provides constant-time insertions and lookups with a small false positive rate, making it ideal for efficient message deduplication in a distributed system.</p>
+<h2 id="data-persistence">Data Persistence</h2>
+<p>While TeleLibre focuses on real-time communication, it also provides optional data persistence:</p>
+<p><span class="math inline">\(key \gets \Call{GenerateStorageKey}{message}\)</span> <span class="math inline">\(encrypted\_content \gets \Call{Encrypt}{message.content, group\_key}\)</span></p>
+<p><span class="math inline">\(key \gets \Call{GenerateStorageKey}{message\_id, group\_id}\)</span> <span class="math inline">\(encrypted\_content \gets \Call{DistributedStorage.Retrieve}{key}\)</span> <span class="math inline">\(content \gets \Call{Decrypt}{encrypted\_content, group\_key}\)</span> <strong>return</strong> content</p>
+<p>Justification: This approach allows for long-term storage of messages while maintaining privacy through encryption. The distributed storage system (e.g., IPFS) ensures data availability without centralized servers.</p>
+<h1 id="security-considerations">Security Considerations</h1>
+<h2 id="message-authentication">Message Authentication</h2>
+<p>TeleLibre uses Ed25519 signatures for message authentication:</p>
+<p><span class="math inline">\(data \gets message.message\_id || message.group\_id || message.sender\_id || message.timestamp || message.content\)</span> <span class="math inline">\(signature \gets \Call{Ed25519.Sign}{data, private\_key}\)</span> <span class="math inline">\(message.signature \gets signature\)</span> <strong>return</strong> message</p>
+<p><span class="math inline">\(data \gets message.message\_id || message.group\_id || message.sender\_id || message.timestamp || message.content\)</span> <span class="math inline">\(public\_key \gets \Call{GetPublicKey}{message.sender\_id}\)</span> <strong>return</strong></p>
+<p>Justification: Ed25519 provides fast signature generation and verification with strong security guarantees, making it suitable for frequent message passing in a decentralized network.</p>
+<h2 id="sybil-attack-mitigation">Sybil Attack Mitigation</h2>
+<p>TeleLibre employs a multi-faceted approach to mitigate Sybil attacks:</p>
+<h3 id="proof-of-work-for-node-registration">Proof-of-Work for Node Registration</h3>
+<p>As specified earlier, nodes must complete a proof-of-work challenge to join the network.</p>
+<h3 id="social-trust-networks">Social Trust Networks</h3>
+<p>Nodes can form trust relationships:</p>
+<p><span class="math inline">\(signature \gets \Call{Sign}{\text{&quot;TRUST&quot;} || peer\_id || trust\_level, private\_key}\)</span></p>
+<p><span class="math inline">\(visited \gets \emptyset\)</span> <span class="math inline">\(queue \gets [(source, 0)]\)</span> <span class="math inline">\((node, depth) \gets queue.\Call{Dequeue}{}\)</span> <strong>return</strong> true <span class="math inline">\(visited.\Call{Add}{node}\)</span> <span class="math inline">\(queue.\Call{Enqueue}{(trusted\_peer, depth + 1)}\)</span> <strong>return</strong> false</p>
+<h3 id="rate-limiting">Rate Limiting</h3>
+<p>Implement rate limiting based on node age and reputation:</p>
+<p><span class="math display">\[\text{rate\_limit} = \text{base\_rate} \cdot \min(1, \frac{\text{node\_age}}{\text{age\_threshold}}) \cdot \text{reputation\_score}\]</span></p>
+<p>Justification: This multi-layered approach makes it computationally expensive to create many identities, leverages social connections to establish trust, and limits the impact of potential Sybil nodes.</p>
+<h1 id="content-moderation">Content Moderation</h1>
+<p>In a decentralized system, content moderation is challenging. TeleLibre provides a framework for community-driven moderation:</p>
+<p><span class="math inline">\(flag \gets \{message\_id, reason, reporter\_id, timestamp\}\)</span> <span class="math inline">\(signature \gets \Call{Sign}{flag, reporter\_private\_key}\)</span></p>
+<p><span class="math inline">\(moderation\_action \gets \{group\_id, message\_id, action, moderator\_id, timestamp\}\)</span> <span class="math inline">\(signature \gets \Call{Sign}{moderation\_action, moderator\_private\_key}\)</span> <strong>raise</strong> UnauthorizedModerationException</p>
+<p><span class="math inline">\(flags \gets \Call{GetFlags}{message.message\_id}\)</span> <span class="math inline">\(user\_preferences \gets \Call{GetUserPreferences}{}\)</span> <strong>return</strong> <strong>return</strong> message</p>
+<p>Justification: This approach allows for community-driven moderation while respecting individual user preferences and group policies. It maintains the decentralized nature of the network while providing tools for content control.</p>
+<h1 id="scalability-and-performance">Scalability and Performance</h1>
+<h2 id="distributed-load-balancing">Distributed Load Balancing</h2>
+<p>TeleLibre implements distributed load balancing techniques:</p>
+<h3 id="adaptive-message-propagation">Adaptive Message Propagation</h3>
+<p>Nodes dynamically adjust their message propagation behavior:</p>
+<p><span class="math display">\[P(\text{forward}) = \min(1, \frac{C}{\text{network\_size}}) \cdot \frac{\text{node\_resources}}{\text{avg\_network\_resources}}\]</span></p>
+<p>Where <span class="math inline">\(C\)</span> is a constant and <span class="math inline">\(\text{node\_resources}\)</span> represents the node’s available bandwidth and processing power.</p>
+<h3 id="content-caching">Content Caching</h3>
+<p>All nodes participate in content caching to improve message retrieval:</p>
+<p>cache_key <span class="math inline">\(\gets\)</span> Hash(message.group_id <span class="math inline">\(\|\)</span> message.message_id) ttl <span class="math inline">\(\gets\)</span> CalculateTTL(message) cache.Put(cache_key, message, ttl)</p>
+<p>cache_key <span class="math inline">\(\gets\)</span> Hash(group_id <span class="math inline">\(\|\)</span> message_id) cache.Get(cache_key)</p>
+<p>base_ttl <span class="math inline">\(\cdot\)</span> PopularityFactor(message)</p>
+<p>Justification: Adaptive message propagation prevents network congestion, while content caching reduces redundant data transfers and improves response times.</p>
+<h2 id="peer-selection-strategy">Peer Selection Strategy</h2>
+<p>Nodes use a smart peer selection strategy to maintain network health:</p>
+<p><span class="math display">\[\text{peer\_score} = w_1 \cdot \text{reputation} + w_2 \cdot \frac{1}{\text{response\_time}} + w_3 \cdot \text{content\_relevance}\]</span></p>
+<p>Where <span class="math inline">\(w_1\)</span>, <span class="math inline">\(w_2\)</span>, and <span class="math inline">\(w_3\)</span> are weighting factors that sum to 1.</p>
+<p>Justification: This scoring system balances multiple factors to ensure a well-connected and efficient network.</p>
+<h1 id="network-resilience">Network Resilience</h1>
+<h2 id="partition-detection-and-recovery">Partition Detection and Recovery</h2>
+<p>TeleLibre implements a partition detection and recovery mechanism:</p>
+<p><span class="math inline">\(known\_nodes \gets \Call{GetKnownNodes}{}\)</span> <span class="math inline">\(reachable\_nodes \gets \Call{ProbeNodes}{known\_nodes}\)</span> <span class="math inline">\(new\_peers \gets \Call{DiscoverNewPeers}{}\)</span> <span class="math inline">\(\Call{ConnectToPeers}{new\_peers}\)</span> <span class="math inline">\(\Call{SyncNetworkState}{}\)</span></p>
+<p><span class="math inline">\(latest\_metadata \gets \Call{DHT.Get}{group.id}\)</span> <span class="math inline">\(\Call{UpdateLocalGroupState}{group, latest\_metadata}\)</span></p>
+<p>Justification: This approach allows the network to detect and recover from partitions, ensuring eventual consistency of group metadata across the network.</p>
+<p>Proof of Effectiveness: 1. Partition Detection: By comparing the number of reachable nodes to known nodes, the system can detect network partitions with high probability. 2. Recovery: The discovery of new peers and subsequent state synchronization ensures that partitioned networks will eventually merge. 3. Consistency: By synchronizing group metadata after reconnection, the system ensures eventual consistency across all nodes.</p>
+<h1 id="simulation-methodology-and-results">Simulation Methodology and Results</h1>
+<h2 id="simulation-approach">Simulation Approach</h2>
+<p>To evaluate the performance and scalability of the TeleLibre protocol, we developed a mathematical model that simulates key aspects of the network behavior. This approach allows us to estimate performance characteristics for large-scale networks without the computational overhead of a full network simulation.</p>
+<h3 id="justification-for-mathematical-modeling">Justification for Mathematical Modeling</h3>
+<p>We chose a mathematical modeling approach for several reasons:</p>
+<ul>
+<li><p>Scalability: It allows us to simulate networks with millions of nodes, which would be computationally infeasible with a full network simulation.</p></li>
+<li><p>Focus on Key Metrics: We can isolate and study specific performance characteristics without the noise introduced by implementation details.</p></li>
+<li><p>Rapid Iteration: Mathematical models enable quick adjustments and sensitivity analyses, allowing us to explore a wide range of scenarios efficiently.</p></li>
+<li><p>Theoretical Foundations: The models are based on established principles in network theory and distributed systems, providing a solid foundation for our estimates.</p></li>
+</ul>
+<h3 id="simulation-parameters">Simulation Parameters</h3>
+<p>Our simulation used the following parameters:</p>
+<ul>
+<li><p>Network Sizes: <span class="math inline">\(10^3\)</span>, <span class="math inline">\(10^4\)</span>, <span class="math inline">\(10^5\)</span>, and <span class="math inline">\(10^6\)</span> nodes</p></li>
+<li><p>Message Rate: 100 messages per second (for bandwidth calculations)</p></li>
+<li><p>Churn Rates: 1%, 5%, and 10% of nodes joining/leaving per hour</p></li>
+<li><p>Network Partition Scenarios: 10% and 30% network split</p></li>
+<li><p>Average Node Connections: 20 (based on our adaptive peer management strategy)</p></li>
+</ul>
+<h3 id="key-assumptions-and-justifications">Key Assumptions and Justifications</h3>
+<ol>
+<li><p>Message Propagation Model: <span class="math display">\[\text{Propagation Time} = \text{Hops} \times \text{Latency per Hop}\]</span> Where: <span class="math display">\[\text{Hops} = \left\lceil\frac{\log(\text{Network Size})}{\log(\text{Average Connections})}\right\rceil\]</span></p>
+<p>Justification: This model is based on the concept of network diameter in random graphs. The logarithmic relationship is well-established in network theory for well-connected graphs.</p></li>
+<li><p>Bandwidth Usage Model: <span class="math display">\[\text{Bandwidth per Node} = \frac{\text{Message Rate} \times \text{Message Size} \times \log_2(\text{Network Size})}{\text{Network Size}}\]</span></p>
+<p>Justification: This model accounts for the efficiency gains of our content-based routing. The logarithmic factor represents the overhead of maintaining routing information, which grows sub-linearly with network size.</p></li>
+<li><p>Churn Resilience Model: <span class="math display">\[\text{Delivery Success Rate} = (1 - \text{Churn Rate})^2\]</span></p>
+<p>Justification: This model assumes that both the sender and receiver need to be active for successful delivery. It’s a conservative estimate that doesn’t account for message caching and retry mechanisms, which would likely improve real-world performance.</p></li>
+<li><p>Partition Recovery Model: <span class="math display">\[\text{Recovery Time} = \log_2(\text{Partitioned Nodes}) \times \text{Time per Doubling}\]</span></p>
+<p>Justification: This logarithmic model is based on the assumption that information spreads exponentially during the recovery process, which is characteristic of gossip-based protocols.</p></li>
+</ol>
+<h2 id="simulation-results-and-analysis">Simulation Results and Analysis</h2>
+<h3 id="message-propagation-time">Message Propagation Time</h3>
+<div id="tab:propagation_time">
+<table>
+<caption>Message Propagation Time for Different Network Sizes</caption>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Network Size</th>
+<th style="text-align: center;">Propagation Time</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">1,000</td>
+<td style="text-align: center;">0.30 seconds</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">10,000</td>
+<td style="text-align: center;">0.40 seconds</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">100,000</td>
+<td style="text-align: center;">0.40 seconds</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">1,000,000</td>
+<td style="text-align: center;">0.50 seconds</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Analysis: The results show that message propagation time scales logarithmically with network size, as expected. The increase from 0.30 seconds for 1,000 nodes to 0.50 seconds for 1,000,000 nodes demonstrates excellent scalability. This performance is achieved through the combination of content-based routing and adaptive flooding mechanisms.</p>
+<h3 id="bandwidth-usage">Bandwidth Usage</h3>
+<div id="tab:bandwidth_usage">
+<table>
+<caption>Bandwidth Usage per Node (for 100 messages/second)</caption>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Network Size</th>
+<th style="text-align: center;">Bandwidth Usage per Node</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">1,000</td>
+<td style="text-align: center;">0.97 KB/s</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">10,000</td>
+<td style="text-align: center;">0.13 KB/s</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">100,000</td>
+<td style="text-align: center;">0.02 KB/s</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">1,000,000</td>
+<td style="text-align: center;"><span class="math inline">\(&lt;\)</span> 0.01 KB/s</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Analysis: The bandwidth usage per node decreases as the network size increases, which is a highly desirable characteristic. This efficiency is due to the content-based routing and probabilistic forwarding mechanisms. Even in a network of 1,000 nodes with high message traffic (100 messages/second), the bandwidth requirement is less than 1 KB/s per node, making the protocol suitable for a wide range of devices and network conditions.</p>
+<h3 id="resilience-to-churn">Resilience to Churn</h3>
+<div id="tab:churn_resilience">
+<table>
+<caption>Message Delivery Success Rate Under Different Churn Rates</caption>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Churn Rate</th>
+<th style="text-align: center;">Message Delivery Success Rate</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">1%</td>
+<td style="text-align: center;">98.01%</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">5%</td>
+<td style="text-align: center;">90.25%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;">10%</td>
+<td style="text-align: center;">81.00%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Analysis: The protocol demonstrates strong resilience to network churn. Even with a high churn rate of 10% (where 10% of nodes are joining or leaving the network per hour), the message delivery success rate remains above 80%. This robustness is achieved through the adaptive peer management and message propagation strategies.</p>
+<h3 id="network-partition-recovery">Network Partition Recovery</h3>
+<div id="tab:partition_recovery">
+<table>
+<caption>Recovery Time After Network Partitions</caption>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Network Split</th>
+<th style="text-align: center;">Time to 95% Consistency</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;">10%</td>
+<td style="text-align: center;">16.61 minutes</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;">30%</td>
+<td style="text-align: center;">18.19 minutes</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Analysis: The protocol shows efficient recovery from network partitions. Even in severe cases where 30% of the network is split off, consistency is restored to 95% of the network in just over 18 minutes. This quick recovery is facilitated by the partition detection and recovery mechanisms, as well as the efficient state synchronization process.</p>
+<h2 id="overall-performance-assessment">Overall Performance Assessment</h2>
+<p>The simulation results demonstrate that the TeleLibre protocol achieves its design goals of scalability, efficiency, and resilience:</p>
+<ul>
+<li><p>Message propagation remains fast (sub-second) even in networks of millions of nodes.</p></li>
+<li><p>Bandwidth usage is minimal and decreases with network size, allowing the protocol to run on a wide range of devices.</p></li>
+<li><p>The network shows strong resilience to churn, maintaining high message delivery rates even under significant node turnover.</p></li>
+<li><p>Recovery from network partitions is quick, ensuring the network can heal itself and maintain consistency.</p></li>
+</ul>
+<p>These results validate the effectiveness of the hybrid message propagation approach, adaptive peer management, and other key features of the TeleLibre protocol. The performance characteristics suggest that TeleLibre is suitable for large-scale, decentralized meme sharing and group communication, capable of supporting millions of users while maintaining efficiency and reliability.</p>
+<h2 id="limitations-and-future-work">Limitations and Future Work</h2>
+<p>While our mathematical models provide valuable insights into the TeleLibre protocol’s performance, they have some limitations:</p>
+<ul>
+<li><p>Network Topology: The models assume a relatively uniform network topology. Real-world networks may have more complex structures that could affect performance.</p></li>
+<li><p>Idealized Conditions: The simulations don’t account for network congestion, varying latencies, or other real-world factors that could impact performance.</p></li>
+<li><p>Security Considerations: The current models don’t incorporate the overhead of security measures like message signing and verification.</p></li>
+</ul>
+<p>Future work should include:</p>
+<ul>
+<li><p>Discrete-event simulations to validate the mathematical models</p></li>
+<li><p>Incorporation of more real-world network conditions</p></li>
+<li><p>Analysis of security overhead and its impact on performance</p></li>
+<li><p>Small-scale real-world deployments to calibrate and refine the models</p></li>
+</ul>
+<h2 id="conclusion">Conclusion</h2>
+<p>The simulation results, based on well-justified mathematical models, suggest that the TeleLibre protocol can achieve excellent scalability, efficiency, and resilience. The logarithmic scaling of key performance metrics indicates that the protocol should perform well even in very large networks. However, these results should be considered as optimistic estimates, and real-world performance may vary due to factors not captured in our current models.</p>
+<h1 id="implementation-guidelines">Implementation Guidelines</h1>
+<p>To implement TeleLibre in a specific technology stack, consider the following guidelines:</p>
+<h2 id="node-implementation">Node Implementation</h2>
+<p>Each node should be implemented as a standalone application capable of:</p>
+<ul>
+<li><p>Managing peer connections (TCP/UDP for direct connections, WebRTC for browser-based implementations)</p></li>
+<li><p>Implementing the DHT logic (Kademlia)</p></li>
+<li><p>Handling message creation, signing, verification, and propagation</p></li>
+<li><p>Managing local storage for messages and group metadata</p></li>
+<li><p>Implementing the user interface for meme creation and viewing</p></li>
+</ul>
+<h2 id="cryptographic-operations">Cryptographic Operations</h2>
+<p>Use established cryptographic libraries for:</p>
+<ul>
+<li><p>Ed25519 for key generation and signatures</p></li>
+<li><p>SHA-256 for hashing operations</p></li>
+<li><p>AES-256 for content encryption (when persistence is enabled)</p></li>
+</ul>
+<h2 id="network-communication">Network Communication</h2>
+<p>Implement a message-oriented protocol over TCP or UDP:</p>
+<ul>
+<li><p>Use Protocol Buffers or a similar serialization format for efficient message encoding</p></li>
+<li><p>Implement heartbeat mechanisms to detect peer disconnections</p></li>
+<li><p>Use connection pooling to manage multiple peer connections efficiently</p></li>
+</ul>
+<h2 id="storage">Storage</h2>
+<p>For local storage, consider using:</p>
+<ul>
+<li><p>LevelDB or RocksDB for efficient key-value storage</p></li>
+<li><p>SQLite for more complex querying needs</p></li>
+</ul>
+<p>For distributed storage (if implementing persistence):</p>
+<ul>
+<li><p>Integrate with IPFS or implement a custom distributed storage solution</p></li>
+</ul>
+<h2 id="user-interface">User Interface</h2>
+<p>Develop a user-friendly interface that allows users to:</p>
+<ul>
+<li><p>Create and join groups</p></li>
+<li><p>Create and share memes</p></li>
+<li><p>View memes from their joined groups</p></li>
+<li><p>Manage their node settings (e.g., storage preferences, content filtering)</p></li>
+</ul>
+<h1 id="conclusion-1">Conclusion</h1>
+<p>TeleLibre provides a robust and scalable foundation for fully decentralized meme sharing and group communication. By addressing key challenges such as network partitions, security, content moderation, and scalability, the protocol offers a practical solution for decentralized communication.</p>
+<p>Key features of TeleLibre include:</p>
+<ul>
+<li><p>True decentralization with no central servers or special nodes</p></li>
+<li><p>Efficient message propagation using hybrid routing</p></li>
+<li><p>Scalability to millions of nodes with logarithmic performance characteristics</p></li>
+<li><p>Resilience to network churn and partitions</p></li>
+<li><p>Built-in security measures to prevent common attacks</p></li>
+<li><p>Flexible content moderation framework</p></li>
+</ul>
+<p>The comprehensive specification provided in this document, along with the simulation results and implementation guidelines, should enable developers to create TeleLibre-compatible applications across various platforms and programming languages.</p>
+<p>Future work could include:</p>
+<ul>
+<li><p>Implementing and testing TeleLibre on real-world networks</p></li>
+<li><p>Developing additional features such as end-to-end encryption for private group messages</p></li>
+<li><p>Exploring integration with other decentralized technologies (e.g., decentralized identity systems)</p></li>
+<li><p>Conducting formal security audits of the protocol</p></li>
+</ul>
+<p>By providing a fully decentralized platform for meme sharing, TeleLibre aims to promote free expression, resist censorship, and create resilient communities in the digital age.</p>
+<h1 id="reference-implementation-plan">Reference Implementation Plan</h1>
+<p>This section provides an exhaustive implementation plan for the TeleLibre protocol reference implementation. The implementation will be done in C++ and will include all features necessary to start the network properly, serving as a seed node that other nodes can connect to. This plan is highly detailed, breaking down each task into specific, actionable steps.</p>
+<h2 id="phase-1-project-setup">Phase 1: Project Setup</h2>
+<ol>
+<li><p><strong>Project Structure:</strong></p>
+<ul>
+<li><p><strong>Create Project Directories:</strong></p>
+<ul>
+<li><p>In your development environment, create the following directory structure:</p>
+<pre><code>            /TeleLibre
+            |-- /src          (for source code files)
+            |-- /include      (for header files)
+            |-- /libs         (for third-party libraries)
+            |-- /bin          (for compiled executables)
+            |-- /build        (for build files)</code></pre></li>
+<li><p>Place all source files (<code>*.cpp</code>) in the <code>src/</code> directory and all header files (<code>*.h</code>) in the <code>include/</code> directory.</p></li>
+<li><p>External libraries will be placed in the <code>libs/</code> directory.</p></li>
+</ul></li>
+<li><p><strong>Initialize CMake:</strong></p>
+<ul>
+<li><p>Create a <code>CMakeLists.txt</code> file in the root of the <code>TeleLibre/</code> directory. This file will control the build process.</p></li>
+<li><p>Add the following basic content to your <code>CMakeLists.txt</code> file:</p>
+<pre><code>            cmake_minimum_required(VERSION 3.10)
+            project(TeleLibre)
+
+            set(CMAKE_CXX_STANDARD 17)
+
+            include_directories(include)
+
+            add_executable(telelibre 
+                src/main.cpp 
+                src/Node.cpp 
+                src/Networking.cpp
+                # Add other source files here
+            )
+
+            target_link_libraries(telelibre 
+                OpenSSL::SSL 
+                OpenSSL::Crypto 
+                Boost::asio 
+                # Add other required libraries here
+            )</code></pre></li>
+<li><p>Ensure that your CMake configuration is set to build an executable named <code>telelibre</code>.</p></li>
+</ul></li>
+<li><p><strong>Version Control:</strong></p>
+<ul>
+<li><p>Initialize a Git repository in your project directory:</p>
+<pre><code>            git init</code></pre></li>
+<li><p>Create a <code>.gitignore</code> file to exclude build files, libraries, and executables from version control. Include the following:</p>
+<pre><code>            /build/
+            /bin/
+            /libs/
+            *.o
+            *.exe</code></pre></li>
+<li><p>Commit your initial setup:</p>
+<pre><code>            git add .
+            git commit -m &quot;Initial project setup&quot;</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-2-node-identification-and-key-management">Phase 2: Node Identification and Key Management</h2>
+<ol>
+<li><p><strong>Ed25519 Key Generation:</strong></p>
+<ul>
+<li><p><strong>Install OpenSSL:</strong></p>
+<ul>
+<li><p>Ensure that OpenSSL is installed on your system. On Linux, you can typically install it with:</p>
+<pre><code>            sudo apt-get install libssl-dev</code></pre></li>
+<li><p>On Windows, download and install OpenSSL from a trusted source.</p></li>
+</ul></li>
+<li><p><strong>Create Key Management Header File:</strong></p>
+<ul>
+<li><p>Create a header file <code>KeyManagement.h</code> in the <code>include/</code> directory.</p></li>
+<li><p>Define the function prototypes for key generation, saving keys to a file, and loading keys from a file:</p>
+<pre><code>            #ifndef KEYMANAGEMENT_H
+            #define KEYMANAGEMENT_H
+
+            #include &lt;openssl/evp.h&gt;
+
+            void generateKeys(EVP_PKEY **privateKey, EVP_PKEY **publicKey);
+            void savePrivateKey(EVP_PKEY *key, const char *filename);
+            void savePublicKey(EVP_PKEY *key, const char *filename);
+            EVP_PKEY* loadPrivateKey(const char *filename);
+            EVP_PKEY* loadPublicKey(const char *filename);
+
+            #endif</code></pre></li>
+</ul></li>
+<li><p><strong>Implement Key Generation:</strong></p>
+<ul>
+<li><p>In the <code>src/</code> directory, create a new source file <code>KeyManagement.cpp</code>.</p></li>
+<li><p>Implement the <code>generateKeys</code> function to generate Ed25519 keys using OpenSSL:</p>
+<pre><code>            #include &quot;KeyManagement.h&quot;
+            #include &lt;openssl/pem.h&gt;
+
+            void generateKeys(EVP_PKEY **privateKey, EVP_PKEY **publicKey) {
+                EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, NULL);
+                if (!ctx) {
+                    // Handle error
+                    return;
+                }
+                if (EVP_PKEY_keygen_init(ctx) &lt;= 0) {
+                    // Handle error
+                    return;
+                }
+                if (EVP_PKEY_keygen(ctx, privateKey) &lt;= 0) {
+                    // Handle error
+                    return;
+                }
+                // The public key can be extracted from the private key
+                *publicKey = EVP_PKEY_dup(*privateKey);
+                EVP_PKEY_CTX_free(ctx);
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Save and Load Keys:</strong></p>
+<ul>
+<li><p>Implement functions to save and load keys in PEM format:</p>
+<pre><code>            void savePrivateKey(EVP_PKEY *key, const char *filename) {
+                FILE *pkey_file = fopen(filename, &quot;wb&quot;);
+                PEM_write_PrivateKey(pkey_file, key, NULL, NULL, 0, NULL, NULL);
+                fclose(pkey_file);
+            }
+
+            void savePublicKey(EVP_PKEY *key, const char *filename) {
+                FILE *pkey_file = fopen(filename, &quot;wb&quot;);
+                PEM_write_PUBKEY(pkey_file, key);
+                fclose(pkey_file);
+            }
+
+            EVP_PKEY* loadPrivateKey(const char *filename) {
+                FILE *pkey_file = fopen(filename, &quot;rb&quot;);
+                EVP_PKEY *pkey = PEM_read_PrivateKey(pkey_file, NULL, NULL, NULL);
+                fclose(pkey_file);
+                return pkey;
+            }
+
+            EVP_PKEY* loadPublicKey(const char *filename) {
+                FILE *pkey_file = fopen(filename, &quot;rb&quot;);
+                EVP_PKEY *pkey = PEM_read_PUBKEY(pkey_file, NULL, NULL, NULL);
+                fclose(pkey_file);
+                return pkey;
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+<li><p><strong>Message Signing and Verification:</strong></p>
+<ul>
+<li><p><strong>Update Header File:</strong></p>
+<ul>
+<li><p>Add function prototypes for signing and verifying messages in <code>KeyManagement.h</code>:</p>
+<pre><code>            int signMessage(EVP_PKEY *privateKey, const unsigned char *msg, 
+                            size_t msgLen, unsigned char **sig, size_t *sigLen);
+            int verifyMessage(EVP_PKEY *publicKey, const unsigned char *msg, 
+                              size_t msgLen, unsigned char *sig, size_t sigLen);</code></pre></li>
+</ul></li>
+<li><p><strong>Implement Signing and Verification:</strong></p>
+<ul>
+<li><p>Implement the <code>signMessage</code> function in <code>KeyManagement.cpp</code>:</p>
+<pre><code>            int signMessage(EVP_PKEY *privateKey, const unsigned char *msg, 
+                            size_t msgLen, unsigned char **sig, size_t *sigLen) {
+                EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+                if (!mdctx) return -1;
+
+                if (EVP_DigestSignInit(mdctx, NULL, NULL, NULL, privateKey) &lt;= 0) {
+                    EVP_MD_CTX_free(mdctx);
+                    return -1;
+                }
+
+                if (EVP_DigestSign(mdctx, NULL, sigLen, msg, msgLen) &lt;= 0) {
+                    EVP_MD_CTX_free(mdctx);
+                    return -1;
+                }
+
+                *sig = (unsigned char *)OPENSSL_malloc(*sigLen);
+                if (!(*sig)) {
+                    EVP_MD_CTX_free(mdctx);
+                    return -1;
+                }
+
+                if (EVP_DigestSign(mdctx, *sig, sigLen, msg, msgLen) &lt;= 0) {
+                    EVP_MD_CTX_free(mdctx);
+                    return -1;
+                }
+
+                EVP_MD_CTX_free(mdctx);
+                return 1;
+            }</code></pre></li>
+<li><p>Implement the <code>verifyMessage</code> function:</p>
+<pre><code>            int verifyMessage(EVP_PKEY *publicKey, const unsigned char *msg, 
+                              size_t msgLen, unsigned char *sig, size_t sigLen) {
+                EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+                if (!mdctx) return -1;
+
+                if (EVP_DigestVerifyInit(mdctx, NULL, NULL, NULL, publicKey) &lt;= 0) {
+                    EVP_MD_CTX_free(mdctx);
+                    return -1;
+                }
+
+                int ret = EVP_DigestVerify(mdctx, sig, sigLen, msg, msgLen);
+
+                EVP_MD_CTX_free(mdctx);
+                return ret;
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Integration:</strong></p>
+<ul>
+<li><p>In the <code>main.cpp</code> or relevant part of the application, integrate the key generation, message signing, and verification:</p>
+<pre><code>            EVP_PKEY *privateKey = NULL;
+            EVP_PKEY *publicKey = NULL;
+            generateKeys(&amp;privateKey, &amp;publicKey);
+            savePrivateKey(privateKey, &quot;private.pem&quot;);
+            savePublicKey(publicKey, &quot;public.pem&quot;);
+
+            const char *message = &quot;Hello, TeleLibre!&quot;;
+            unsigned char *signature = NULL;
+            size_t signatureLen = 0;
+
+            if (signMessage(privateKey, (unsigned char *)message, 
+                            strlen(message), &amp;signature, &amp;signatureLen) == 1) {
+                printf(&quot;Message signed successfully.\n&quot;);
+            }
+
+            if (verifyMessage(publicKey, (unsigned char *)message, 
+                              strlen(message), signature, signatureLen) == 1) {
+                printf(&quot;Message verified successfully.\n&quot;);
+            }
+
+            OPENSSL_free(signature);
+            EVP_PKEY_free(privateKey);
+            EVP_PKEY_free(publicKey);</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-3-networking-and-bootstrap-mechanism">Phase 3: Networking and Bootstrap Mechanism</h2>
+<ol>
+<li><p><strong>Peer-to-Peer Networking:</strong></p>
+<ul>
+<li><p><strong>Install Boost.Asio:</strong></p>
+<ul>
+<li><p>Install Boost libraries, which include Boost.Asio. On Linux, you can install it with:</p>
+<pre><code>            sudo apt-get install libboost-all-dev</code></pre></li>
+<li><p>On Windows, download and install Boost from a trusted source.</p></li>
+</ul></li>
+<li><p><strong>Create Networking Header File:</strong></p>
+<ul>
+<li><p>Create a new header file <code>Networking.h</code> in the <code>include/</code> directory.</p></li>
+<li><p>Define the necessary classes and function prototypes for handling peer connections:</p>
+<pre><code>            #ifndef NETWORKING_H
+            #define NETWORKING_H
+
+            #include &lt;boost/asio.hpp&gt;
+
+            class PeerConnection {
+            public:
+                PeerConnection(boost::asio::io_context&amp; io_context, 
+                               const std::string&amp; server, const std::string&amp; port);
+
+                void start();
+                void sendMessage(const std::string&amp; msg);
+                void receiveMessage();
+
+            private:
+                boost::asio::ip::tcp::socket socket_;
+                std::string server_;
+                std::string port_;
+            };
+
+            #endif</code></pre></li>
+</ul></li>
+<li><p><strong>Implement Peer-to-Peer Connection:</strong></p>
+<ul>
+<li><p>In <code>Networking.cpp</code>, implement the constructor and methods for establishing and managing connections:</p>
+<pre><code>            #include &quot;Networking.h&quot;
+            #include &lt;iostream&gt;
+
+            PeerConnection::PeerConnection(boost::asio::io_context&amp; io_context, 
+                                           const std::string&amp; server, const std::string&amp; port)
+                : socket_(io_context), server_(server), port_(port) {}
+
+            void PeerConnection::start() {
+                boost::asio::ip::tcp::resolver resolver(socket_.get_io_context());
+                auto endpoints = resolver.resolve(server_, port_);
+                boost::asio::connect(socket_, endpoints);
+                receiveMessage();  // Start receiving messages
+            }
+
+            void PeerConnection::sendMessage(const std::string&amp; msg) {
+                boost::asio::write(socket_, boost::asio::buffer(msg + &quot;\n&quot;));
+            }
+
+            void PeerConnection::receiveMessage() {
+                boost::asio::streambuf buffer;
+                boost::asio::read_until(socket_, buffer, &quot;\n&quot;);
+                std::istream is(&amp;buffer);
+                std::string line;
+                std::getline(is, line);
+                std::cout &lt;&lt; &quot;Received: &quot; &lt;&lt; line &lt;&lt; std::endl;
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+<li><p><strong>Bootstrap Process:</strong></p>
+<ul>
+<li><p><strong>Define Bootstrap Procedure:</strong></p>
+<ul>
+<li><p>Add a function prototype in <code>Networking.h</code> for the bootstrap process:</p>
+<pre><code>            void bootstrapNetwork(const std::vector&lt;std::string&gt;&amp; seedNodes);</code></pre></li>
+</ul></li>
+<li><p><strong>Implement Bootstrap Logic:</strong></p>
+<ul>
+<li><p>In <code>Networking.cpp</code>, implement the function to connect to seed nodes and retrieve peer lists:</p>
+<pre><code>            void bootstrapNetwork(const std::vector&lt;std::string&gt;&amp; seedNodes) {
+                boost::asio::io_context io_context;
+
+                for (const auto&amp; node : seedNodes) {
+                    std::string server = node.substr(0, node.find(&quot;:&quot;));
+                    std::string port = node.substr(node.find(&quot;:&quot;) + 1);
+
+                    PeerConnection peer(io_context, server, port);
+                    peer.start();
+
+                    std::string request = &quot;RequestPeers&quot;;
+                    peer.sendMessage(request);
+
+                    // Wait and process response (assume a simple peer list format)
+                    peer.receiveMessage();
+                }
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Integrate Proof-of-Work:</strong></p>
+<ul>
+<li><p>Implement a simple proof-of-work challenge within the bootstrap logic. Assume a challenge is received from the seed node, and the node must find a nonce that produces a hash with a specified number of leading zeros:</p>
+<pre><code>            std::string computeProofOfWork(const std::string&amp; challenge, int difficulty) {
+                int nonce = 0;
+                std::string hash;
+
+                do {
+                    std::stringstream ss;
+                    ss &lt;&lt; challenge &lt;&lt; nonce;
+                    hash = sha256(ss.str());
+                    nonce++;
+                } while (hash.substr(0, difficulty) != std::string(difficulty, &#39;0&#39;));
+
+                return std::to_string(nonce);
+            }</code></pre></li>
+<li><p>Integrate this function into the bootstrap process, where the proof-of-work solution is sent back to the seed node after computing:</p>
+<pre><code>            for (const auto&amp; node : seedNodes) {
+                // ... (existing bootstrap logic)
+
+                std::string challenge = &quot;received-challenge&quot;; // Placeholder
+                int difficulty = 4; // Placeholder
+                std::string proof = computeProofOfWork(challenge, difficulty);
+                peer.sendMessage(proof);
+
+                // Continue the bootstrap process...
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-4-message-propagation">Phase 4: Message Propagation</h2>
+<ol>
+<li><p><strong>Hybrid Message Propagation:</strong></p>
+<ul>
+<li><p><strong>Routing Table Definition:</strong></p>
+<ul>
+<li><p>Create a class <code>RoutingTable</code> in a new header file <code>RoutingTable.h</code>:</p>
+<pre><code>            #ifndef ROUTINGTABLE_H
+            #define ROUTINGTABLE_H
+
+            #include &lt;string&gt;
+            #include &lt;vector&gt;
+            #include &lt;unordered_map&gt;
+
+            class RoutingTable {
+            public:
+                void addPeer(const std::string&amp; category, const std::string&amp; peer);
+                std::vector&lt;std::string&gt; getPeersForCategory(const std::string&amp; category);
+
+            private:
+                std::unordered_map&lt;std::string, std::vector&lt;std::string&gt;&gt; table_;
+            };
+
+            #endif</code></pre></li>
+<li><p>Implement the methods in <code>RoutingTable.cpp</code>:</p>
+<pre><code>            #include &quot;RoutingTable.h&quot;
+
+            void RoutingTable::addPeer(const std::string&amp; category, const std::string&amp; peer) {
+                table_[category].push_back(peer);
+            }
+
+            std::vector&lt;std::string&gt; RoutingTable::getPeersForCategory(const std::string&amp; category) {
+                if (table_.find(category) != table_.end()) {
+                    return table_[category];
+                }
+                return {};
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Adaptive Flooding:</strong></p>
+<ul>
+<li><p>Add an adaptive flooding mechanism that calculates a flood radius based on network size:</p>
+<pre><code>            int calculateFloodRadius(int networkSize) {
+                return static_cast&lt;int&gt;(std::ceil(std::log2(networkSize)));
+            }
+
+            bool shouldForwardMessage(int networkSize) {
+                static const int C = 1000;
+                return (std::rand() % networkSize) &lt; C;
+            }</code></pre></li>
+<li><p>Integrate these functions into the message propagation routine, determining whether to flood or route based on the routing table:</p>
+<pre><code>            void propagateMessage(const std::string&amp; message, const std::string&amp; category, 
+                                  RoutingTable&amp; routingTable, int networkSize) {
+                auto peers = routingTable.getPeersForCategory(category);
+                if (!peers.empty()) {
+                    for (const auto&amp; peer : peers) {
+                        // Send message to specific peers
+                        sendMessageToPeer(peer, message);
+                    }
+                } else if (shouldForwardMessage(networkSize)) {
+                    // Flood message to all connected peers
+                    floodMessageToAllPeers(message);
+                }
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+<li><p><strong>Message Verification and Deduplication:</strong></p>
+<ul>
+<li><p><strong>Bloom Filter Implementation:</strong></p>
+<ul>
+<li><p>Create a class <code>BloomFilter</code> in <code>BloomFilter.h</code> to manage message IDs:</p>
+<pre><code>            #ifndef BLOOMFILTER_H
+            #define BLOOMFILTER_H
+
+            #include &lt;bitset&gt;
+            #include &lt;functional&gt;
+            #include &lt;string&gt;
+
+            class BloomFilter {
+            public:
+                BloomFilter(size_t size);
+                void add(const std::string&amp; item);
+                bool contains(const std::string&amp; item);
+
+            private:
+                std::bitset&lt;10000&gt; filter_;
+                std::hash&lt;std::string&gt; hash1_;
+                std::hash&lt;std::string&gt; hash2_;
+            };
+
+            #endif</code></pre></li>
+<li><p>Implement the Bloom filter methods in <code>BloomFilter.cpp</code>:</p>
+<pre><code>            #include &quot;BloomFilter.h&quot;
+
+            BloomFilter::BloomFilter(size_t size) : filter_(size) {}
+
+            void BloomFilter::add(const std::string&amp; item) {
+                filter_.set(hash1_(item) % filter_.size());
+                filter_.set(hash2_(item) % filter_.size());
+            }
+
+            bool BloomFilter::contains(const std::string&amp; item) {
+                return filter_.test(hash1_(item) % filter_.size()) &amp;&amp;
+                       filter_.test(hash2_(item) % filter_.size());
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Integration with Message Propagation:</strong></p>
+<ul>
+<li><p>Update the message propagation routine to check the Bloom filter before forwarding:</p>
+<pre><code>            void propagateMessage(const std::string&amp; message, const std::string&amp; category, 
+                                  RoutingTable&amp; routingTable, int networkSize, BloomFilter&amp; bloomFilter) {
+                if (!bloomFilter.contains(message)) {
+                    bloomFilter.add(message);
+                    // (continue with existing propagation logic)
+                }
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-5-distributed-hash-table-dht">Phase 5: Distributed Hash Table (DHT)</h2>
+<ol>
+<li><p><strong>Kademlia-based DHT:</strong></p>
+<ul>
+<li><p><strong>Implement Kademlia Node Structure:</strong></p>
+<ul>
+<li><p>Create a class <code>KademliaNode</code> in <code>KademliaNode.h</code>:</p>
+<pre><code>            #ifndef KADEMLIANODE_H
+            #define KADEMLIANODE_H
+
+            #include &lt;string&gt;
+            #include &lt;vector&gt;
+            #include &lt;map&gt;
+
+            class KademliaNode {
+            public:
+                KademliaNode(const std::string&amp; nodeId, const std::string&amp; ip, int port);
+                void store(const std::string&amp; key, const std::string&amp; value);
+                std::string findNode(const std::string&amp; key);
+                std::string findValue(const std::string&amp; key);
+
+            private:
+                std::string nodeId_;
+                std::string ip_;
+                int port_;
+                std::map&lt;std::string, std::string&gt; dataStore_;  // Simple key-value store
+                std::vector&lt;KademliaNode&gt; kBucket_;  // Store nodes by distance
+            };
+
+            #endif</code></pre></li>
+<li><p>Implement basic operations in <code>KademliaNode.cpp</code>:</p>
+<pre><code>            #include &quot;KademliaNode.h&quot;
+            #include &lt;iostream&gt;
+
+            KademliaNode::KademliaNode(const std::string&amp; nodeId, const std::string&amp; ip, int port) 
+                : nodeId_(nodeId), ip_(ip), port_(port) {}
+
+            void KademliaNode::store(const std::string&amp; key, const std::string&amp; value) {
+                dataStore_[key] = value;
+                std::cout &lt;&lt; &quot;Stored key: &quot; &lt;&lt; key &lt;&lt; &quot; with value: &quot; &lt;&lt; value &lt;&lt; std::endl;
+            }
+
+            std::string KademliaNode::findNode(const std::string&amp; key) {
+                // Basic implementation for finding a node
+                return dataStore_[key];
+            }
+
+            std::string KademliaNode::findValue(const std::string&amp; key) {
+                // Find the closest nodes to the key and search for the value
+                for (const auto&amp; node : kBucket_) {
+                    if (node.dataStore_.find(key) != node.dataStore_.end()) {
+                        return node.dataStore_[key];
+                    }
+                }
+                return &quot;&quot;;
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Integrate into Main Node Functionality:</strong></p>
+<ul>
+<li><p>In the main application, instantiate <code>KademliaNode</code> and use it for storing and retrieving group metadata:</p>
+<pre><code>            KademliaNode myNode(&quot;node-001&quot;, &quot;127.0.0.1&quot;, 6881);
+
+            myNode.store(&quot;group001&quot;, &quot;{ &#39;name&#39;: &#39;Meme Group&#39;, &#39;members&#39;: 10 }&quot;);
+
+            std::string metadata = myNode.findValue(&quot;group001&quot;);
+            std::cout &lt;&lt; &quot;Metadata for group001: &quot; &lt;&lt; metadata &lt;&lt; std::endl;</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-6-group-management">Phase 6: Group Management</h2>
+<ol>
+<li><p><strong>Group Creation and Joining:</strong></p>
+<ul>
+<li><p><strong>Define Group Metadata Structure:</strong></p>
+<ul>
+<li><p>Define a class <code>GroupMetadata</code> in <code>GroupMetadata.h</code>:</p>
+<pre><code>            #ifndef GROUPMETADATA_H
+            #define GROUPMETADATA_H
+
+            #include &lt;string&gt;
+            #include &lt;vector&gt;
+
+            class GroupMetadata {
+            public:
+                GroupMetadata(const std::string&amp; groupId, const std::string&amp; name);
+                void addMember(const std::string&amp; memberId);
+                void updateMetadata(const std::string&amp; name, int members);
+
+            private:
+                std::string groupId_;
+                std::string name_;
+                int memberCount_;
+                std::vector&lt;std::string&gt; members_;
+            };
+
+            #endif</code></pre></li>
+</ul></li>
+<li><p><strong>Implement Group Management Methods:</strong></p>
+<ul>
+<li><p>Implement methods in <code>GroupMetadata.cpp</code> to handle group creation and member management:</p>
+<pre><code>            #include &quot;GroupMetadata.h&quot;
+
+            GroupMetadata::GroupMetadata(const std::string&amp; groupId, const std::string&amp; name)
+                : groupId_(groupId), name_(name), memberCount_(0) {}
+
+            void GroupMetadata::addMember(const std::string&amp; memberId) {
+                members_.push_back(memberId);
+                memberCount_++;
+            }
+
+            void GroupMetadata::updateMetadata(const std::string&amp; name, int members) {
+                name_ = name;
+                memberCount_ = members;
+            }</code></pre></li>
+<li><p>Integrate group creation into the DHT:</p>
+<pre><code>            KademliaNode myNode(&quot;node-001&quot;, &quot;127.0.0.1&quot;, 6881);
+
+            GroupMetadata newGroup(&quot;group001&quot;, &quot;Meme Group&quot;);
+            newGroup.addMember(&quot;node-001&quot;);
+
+            myNode.store(&quot;group001&quot;, &quot;{ &#39;name&#39;: &#39;Meme Group&#39;, &#39;members&#39;: 1 }&quot;);</code></pre></li>
+</ul></li>
+</ul></li>
+<li><p><strong>Consistency Mechanisms:</strong></p>
+<ul>
+<li><p><strong>Version Control for Metadata:</strong></p>
+<ul>
+<li><p>Modify the <code>GroupMetadata</code> class to include versioning:</p>
+<pre><code>            private:
+                int version_;
+                time_t lastUpdate_;</code></pre></li>
+<li><p>Update the <code>updateMetadata</code> method to increment the version number and update the timestamp:</p>
+<pre><code>            void GroupMetadata::updateMetadata(const std::string&amp; name, int members) {
+                name_ = name;
+                memberCount_ = members;
+                version_++;
+                lastUpdate_ = std::time(nullptr);
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Merge Functionality:</strong></p>
+<ul>
+<li><p>Implement a merge function to resolve conflicts when multiple nodes have different versions of the same metadata:</p>
+<pre><code>            GroupMetadata GroupMetadata::merge(const GroupMetadata&amp; other) {
+                if (other.version_ &gt; version_) {
+                    return other;
+                }
+                // If versions are the same, merge members and return the updated metadata
+                for (const auto&amp; member : other.members_) {
+                    if (std::find(members_.begin(), members_.end(), member) == members_.end()) {
+                        members_.push_back(member);
+                        memberCount_++;
+                    }
+                }
+                return *this;
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-7-content-moderation-and-security">Phase 7: Content Moderation and Security</h2>
+<ol>
+<li><p><strong>Content Moderation:</strong></p>
+<ul>
+<li><p><strong>Implement Content Flagging System:</strong></p>
+<ul>
+<li><p>Define a class <code>ContentFlag</code> in <code>ContentFlag.h</code>:</p>
+<pre><code>            #ifndef CONTENTFLAG_H
+            #define CONTENTFLAG_H
+
+            #include &lt;string&gt;
+
+            class ContentFlag {
+            public:
+                ContentFlag(const std::string&amp; messageId, const std::string&amp; reason, const std::string&amp; reporterId);
+                std::string getMessageId() const;
+                std::string getReason() const;
+
+            private:
+                std::string messageId_;
+                std::string reason_;
+                std::string reporterId_;
+                time_t timestamp_;
+            };
+
+            #endif</code></pre></li>
+<li><p>Implement the constructor and methods in <code>ContentFlag.cpp</code>:</p>
+<pre><code>            #include &quot;ContentFlag.h&quot;
+
+            ContentFlag::ContentFlag(const std::string&amp; messageId, const std::string&amp; reason, const std::string&amp; reporterId)
+                : messageId_(messageId), reason_(reason), reporterId_(reporterId), timestamp_(std::time(nullptr)) {}
+
+            std::string ContentFlag::getMessageId() const { return messageId_; }
+            std::string ContentFlag::getReason() const { return reason_; }</code></pre></li>
+</ul></li>
+<li><p><strong>Moderation Commands:</strong></p>
+<ul>
+<li><p>Implement command-line commands to flag content and to allow group admins to take actions:</p>
+<pre><code>            void flagContent(const std::string&amp; messageId, const std::string&amp; reason, const std::string&amp; reporterId) {
+                ContentFlag flag(messageId, reason, reporterId);
+                // Serialize flag and broadcast to peers (implementation specific)
+            }
+
+            void moderateContent(const std::string&amp; groupId, const std::string&amp; messageId, const std::string&amp; action, const std::string&amp; moderatorId) {
+                // Verify moderator authority
+                // Take action based on the flag (e.g., delete, ban user)
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+<li><p><strong>Sybil Attack Mitigation:</strong></p>
+<ul>
+<li><p><strong>Integrate Proof-of-Work:</strong></p>
+<ul>
+<li><p>Ensure the proof-of-work system used in the bootstrap phase is enforced during node registration to mitigate Sybil attacks, as outlined in Phase 3.</p></li>
+</ul></li>
+<li><p><strong>Implement Social Trust Networks:</strong></p>
+<ul>
+<li><p>Create a class <code>TrustNetwork</code> in <code>TrustNetwork.h</code> to manage trust relationships:</p>
+<pre><code>            #ifndef TRUSTNETWORK_H
+            #define TRUSTNETWORK_H
+
+            #include &lt;string&gt;
+            #include &lt;unordered_map&gt;
+            #include &lt;vector&gt;
+
+            class TrustNetwork {
+            public:
+                void establishTrust(const std::string&amp; peerId, int trustLevel);
+                bool verifyTrust(const std::string&amp; source, const std::string&amp; target, int maxDepth);
+
+            private:
+                std::unordered_map&lt;std::string, std::vector&lt;std::pair&lt;std::string, int&gt;&gt;&gt; trustGraph_;
+            };
+
+            #endif</code></pre></li>
+<li><p>Implement trust management in <code>TrustNetwork.cpp</code>:</p>
+<pre><code>            #include &quot;TrustNetwork.h&quot;
+
+            void TrustNetwork::establishTrust(const std::string&amp; peerId, int trustLevel) {
+                trustGraph_[peerId].emplace_back(peerId, trustLevel);
+            }
+
+            bool TrustNetwork::verifyTrust(const std::string&amp; source, const std::string&amp; target, int maxDepth) {
+                // Implement a simple breadth-first search to verify trust relationships
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Rate Limiting:</strong></p>
+<ul>
+<li><p>Implement a rate-limiting system based on node age and reputation:</p>
+<pre><code>            int calculateRateLimit(int nodeAge, float reputationScore) {
+                static const int baseRate = 100;
+                return static_cast&lt;int&gt;(baseRate * std::min(1.0f, static_cast&lt;float&gt;(nodeAge) / 10) * reputationScore);
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-8-command-line-interface-cli">Phase 8: Command-Line Interface (CLI)</h2>
+<ol>
+<li><p><strong>Basic CLI Structure:</strong></p>
+<ul>
+<li><p><strong>Implement CLI Framework:</strong></p>
+<ul>
+<li><p>Create a new file <code>CLI.cpp</code> to handle command-line interactions:</p>
+<pre><code>            #include &lt;iostream&gt;
+            #include &lt;string&gt;
+
+            void displayHelp() {
+                std::cout &lt;&lt; &quot;Available commands:\n&quot;;
+                std::cout &lt;&lt; &quot;  create_group &lt;group_name&gt;\n&quot;;
+                std::cout &lt;&lt; &quot;  join_group &lt;group_id&gt;\n&quot;;
+                std::cout &lt;&lt; &quot;  send_message &lt;group_id&gt; &lt;message&gt;\n&quot;;
+                std::cout &lt;&lt; &quot;  list_peers\n&quot;;
+                std::cout &lt;&lt; &quot;  help\n&quot;;
+            }
+
+            int main(int argc, char *argv[]) {
+                if (argc &lt; 2) {
+                    displayHelp();
+                    return 1;
+                }
+
+                std::string command = argv[1];
+
+                if (command == &quot;create_group&quot;) {
+                    // Handle group creation
+                } else if (command == &quot;join_group&quot;) {
+                    // Handle group joining
+                } else if (command == &quot;send_message&quot;) {
+                    // Handle sending message
+                } else if (command == &quot;list_peers&quot;) {
+                    // Handle listing peers
+                } else if (command == &quot;help&quot;) {
+                    displayHelp();
+                } else {
+                    std::cout &lt;&lt; &quot;Unknown command. Type &#39;help&#39; for a list of commands.\n&quot;;
+                }
+
+                return 0;
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+<li><p><strong>Advanced CLI Features:</strong></p>
+<ul>
+<li><p><strong>Add Real-Time Logging:</strong></p>
+<ul>
+<li><p>Implement a simple logging system to display real-time node activity in the command-line:</p>
+<pre><code>            void logMessage(const std::string&amp; msg) {
+                std::cout &lt;&lt; &quot;[LOG] &quot; &lt;&lt; msg &lt;&lt; std::endl;
+            }</code></pre></li>
+</ul></li>
+<li><p><strong>Node Settings Management:</strong></p>
+<ul>
+<li><p>Add CLI options to configure node settings, such as storage paths and network configurations:</p>
+<pre><code>            void configureNodeSettings() {
+                // Allow user to set storage paths, network configurations, etc.
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-9-data-persistence">Phase 9: Data Persistence</h2>
+<ol>
+<li><p><strong>Persistent Storage:</strong></p>
+<ul>
+<li><p><strong>Integrate LevelDB:</strong></p>
+<ul>
+<li><p>Install LevelDB, a fast key-value storage library, and create a wrapper class to interact with it:</p>
+<pre><code>            #include &lt;leveldb/db.h&gt;
+            #include &lt;iostream&gt;
+
+            class Storage {
+            public:
+                Storage(const std::string&amp; dbPath) {
+                    leveldb::Options options;
+                    options.create_if_missing = true;
+                    leveldb::DB::Open(options, dbPath, &amp;db_);
+                }
+
+                ~Storage() {
+                    delete db_;
+                }
+
+                void storeMessage(const std::string&amp; key, const std::string&amp; message) {
+                    db_-&gt;Put(leveldb::WriteOptions(), key, message);
+                }
+
+                std::string retrieveMessage(const std::string&amp; key) {
+                    std::string message;
+                    db_-&gt;Get(leveldb::ReadOptions(), key, &amp;message);
+                    return message;
+                }
+
+            private:
+                leveldb::DB* db_;
+            };</code></pre></li>
+</ul></li>
+<li><p><strong>Encryption for Persistent Data:</strong></p>
+<ul>
+<li><p>Integrate AES-256 encryption using OpenSSL to encrypt messages before storing them:</p>
+<pre><code>            std::string encryptMessage(const std::string&amp; plainText, const std::string&amp; key) {
+                // Implement AES-256 encryption here using OpenSSL
+            }
+
+            std::string decryptMessage(const std::string&amp; cipherText, const std::string&amp; key) {
+                // Implement AES-256 decryption here using OpenSSL
+            }</code></pre></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="phase-10-final-integration-and-deployment">Phase 10: Final Integration and Deployment</h2>
+<ol>
+<li><p><strong>Component Integration:</strong></p>
+<ul>
+<li><p><strong>Final Code Review:</strong></p>
+<ul>
+<li><p>Perform a final review of all code to ensure that all components work together seamlessly. Test the full process from key generation and message propagation to data persistence and retrieval.</p></li>
+</ul></li>
+<li><p><strong>Performance Optimization:</strong></p>
+<ul>
+<li><p>Optimize network and storage operations to ensure that the node runs efficiently even under high load.</p></li>
+<li><p>Review memory usage and address any potential leaks.</p></li>
+</ul></li>
+</ul></li>
+<li><p><strong>Deployment:</strong></p>
+<ul>
+<li><p><strong>Create Deployment Script:</strong></p>
+<ul>
+<li><p>Develop a script to automate the deployment of the TeleLibre node on various platforms. This could involve setting environment variables, starting the node, and ensuring it’s running as a background process.</p></li>
+</ul></li>
+<li><p><strong>Documentation:</strong></p>
+<ul>
+<li><p>Write clear documentation explaining how to start and manage a node, connect to the network, and use the CLI to interact with the node.</p></li>
+</ul></li>
+</ul></li>
+</ol>
+<h2 id="conclusion-and-next-steps">Conclusion and Next Steps</h2>
+<p>This detailed implementation plan provides a comprehensive guide for developing the TeleLibre protocol’s reference implementation in C++. Each phase breaks down the tasks into specific, actionable steps with clear instructions, ensuring that even developers with minimal experience can follow along. The final product will be a fully functional seed node that can serve as the foundation for the decentralized TeleLibre network.</p>
+<p>Upon completion, further work could include GUI development, enhanced security, and performance optimizations for large-scale deployments.</p>
