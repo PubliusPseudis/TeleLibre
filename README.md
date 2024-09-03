@@ -69,7 +69,7 @@ You can customize various settings, such as storage paths and network configurat
 ## Documentation
 
 For detailed technical specifications, please refer to the TeleLibre Technical Specification.
-Contributing
+## Contributing
 
 We welcome contributions from the community.
 
