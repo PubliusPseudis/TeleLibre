@@ -63,10 +63,10 @@ bash
 
     ./telelibre send_message <group_id> "Check out this meme!"
 
-Configuration
+## Configuration
 
-You can customize various settings, such as storage paths and network configurations, by modifying the config.json file in the project root.
-Documentation
+You can customize various settings, such as storage paths and network configurations, by modifying the config.json file in the project root. This isn't made yet :)
+## Documentation
 
 For detailed technical specifications, please refer to the TeleLibre Technical Specification.
 Contributing
