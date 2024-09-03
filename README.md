@@ -29,9 +29,15 @@ private key is used for signing messages and proving identity.
 
 Nodes use the Ed25519 elliptic curve algorithm for key generation:
 
-\(seed \gets \Call{SecureRandomBytes}{32}\)
-\((private\_key, public\_key) \gets \Call{Ed25519.GenerateKeys}{seed}\)
-**return** \((private\_key, public\_key)\)
+![seed \\gets
+\\Call{SecureRandomBytes}{32}](https://latex.codecogs.com/svg.latex?seed%20%5Cgets%20%5CCall%7BSecureRandomBytes%7D%7B32%7D
+"seed \\gets \\Call{SecureRandomBytes}{32}") ![(private\\\_key,
+public\\\_key) \\gets
+\\Call{Ed25519.GenerateKeys}{seed}](https://latex.codecogs.com/svg.latex?%28private%5C_key%2C%20public%5C_key%29%20%5Cgets%20%5CCall%7BEd25519.GenerateKeys%7D%7Bseed%7D
+"(private\\_key, public\\_key) \\gets \\Call{Ed25519.GenerateKeys}{seed}")
+**return** ![(private\\\_key,
+public\\\_key)](https://latex.codecogs.com/svg.latex?%28private%5C_key%2C%20public%5C_key%29
+"(private\\_key, public\\_key)")
 
 Justification: Ed25519 provides a good balance of security and
 performance, with 128-bit security and fast signature verification,
@@ -42,11 +48,19 @@ passing.
 
 New nodes join the network through a bootstrap process:
 
-\(peer\_list \gets \emptyset\)
-\(challenge \gets \Call{RequestChallenge}{node}\)
-\(proof \gets \Call{ComputeProofOfWork}{challenge}\)
-\(new\_peers \gets \Call{RequestPeers}{node, proof}\)
-\(peer\_list \gets peer\_list \cup new\_peers\)
+![peer\\\_list \\gets
+\\emptyset](https://latex.codecogs.com/svg.latex?peer%5C_list%20%5Cgets%20%5Cemptyset
+"peer\\_list \\gets \\emptyset") ![challenge \\gets
+\\Call{RequestChallenge}{node}](https://latex.codecogs.com/svg.latex?challenge%20%5Cgets%20%5CCall%7BRequestChallenge%7D%7Bnode%7D
+"challenge \\gets \\Call{RequestChallenge}{node}") ![proof \\gets
+\\Call{ComputeProofOfWork}{challenge}](https://latex.codecogs.com/svg.latex?proof%20%5Cgets%20%5CCall%7BComputeProofOfWork%7D%7Bchallenge%7D
+"proof \\gets \\Call{ComputeProofOfWork}{challenge}") ![new\\\_peers
+\\gets \\Call{RequestPeers}{node,
+proof}](https://latex.codecogs.com/svg.latex?new%5C_peers%20%5Cgets%20%5CCall%7BRequestPeers%7D%7Bnode%2C%20proof%7D
+"new\\_peers \\gets \\Call{RequestPeers}{node, proof}") ![peer\\\_list
+\\gets peer\\\_list \\cup
+new\\\_peers](https://latex.codecogs.com/svg.latex?peer%5C_list%20%5Cgets%20peer%5C_list%20%5Ccup%20new%5C_peers
+"peer\\_list \\gets peer\\_list \\cup new\\_peers")
 
 Seed nodes are hard-coded or user-provided entry points to the network.
 If no existing network is found, the node initiates a new network.
@@ -57,14 +71,24 @@ To prevent Sybil attacks and ensure that joining the network requires
 some computational effort, new nodes must complete a proof-of-work
 challenge:
 
-\(nonce \gets 0\)
-\(hash \gets \Call{SHA256}{challenge || nonce || public\_key}\)
-**return** \(nonce\) \(nonce \gets nonce + 1\)
+![nonce
+\\gets 0](https://latex.codecogs.com/svg.latex?nonce%20%5Cgets%200
+"nonce \\gets 0") ![hash \\gets \\Call{SHA256}{challenge || nonce ||
+public\\\_key}](https://latex.codecogs.com/svg.latex?hash%20%5Cgets%20%5CCall%7BSHA256%7D%7Bchallenge%20%7C%7C%20nonce%20%7C%7C%20public%5C_key%7D
+"hash \\gets \\Call{SHA256}{challenge || nonce || public\\_key}")
+**return** ![nonce](https://latex.codecogs.com/svg.latex?nonce "nonce")
+![nonce \\gets nonce
++ 1](https://latex.codecogs.com/svg.latex?nonce%20%5Cgets%20nonce%20%2B%201
+"nonce \\gets nonce + 1")
 
-Where \(difficulty\) is dynamically adjusted based on the network size
-and join rate:
+Where ![difficulty](https://latex.codecogs.com/svg.latex?difficulty
+"difficulty") is dynamically adjusted based on the network size and join
+rate:
 
-\[difficulty = \left\lceil\log_2(network\_size) + \frac{join\_rate}{10}\right\rceil\]
+  
+![difficulty = \\left\\lceil\\log\_2(network\\\_size) +
+\\frac{join\\\_rate}{10}\\right\\rceil](https://latex.codecogs.com/svg.latex?difficulty%20%3D%20%5Cleft%5Clceil%5Clog_2%28network%5C_size%29%20%2B%20%5Cfrac%7Bjoin%5C_rate%7D%7B10%7D%5Cright%5Crceil
+"difficulty = \\left\\lceil\\log_2(network\\_size) + \\frac{join\\_rate}{10}\\right\\rceil")  
 
 Justification: The proof-of-work mechanism serves several purposes:
 
@@ -75,11 +99,16 @@ Justification: The proof-of-work mechanism serves several purposes:
 
   - It provides a natural rate-limiting mechanism for network growth
 
-Proof of Effectiveness: Let \(H\) be the hash rate of an average node,
-and \(N\) be the network size. The time to complete the PoW is
-approximately:
+Proof of Effectiveness: Let ![H](https://latex.codecogs.com/svg.latex?H
+"H") be the hash rate of an average node, and
+![N](https://latex.codecogs.com/svg.latex?N "N") be the network size.
+The time to complete the PoW is approximately:
 
-\[T_{PoW} \approx \frac{2^{difficulty}}{H} = \frac{2^{\log_2(N) + join\_rate/10}}{H} = \frac{N \cdot 2^{join\_rate/10}}{H}\]
+  
+![T\_{PoW} \\approx \\frac{2^{difficulty}}{H} = \\frac{2^{\\log\_2(N) +
+join\\\_rate/10}}{H} = \\frac{N
+\\cdot 2^{join\\\_rate/10}}{H}](https://latex.codecogs.com/svg.latex?T_%7BPoW%7D%20%5Capprox%20%5Cfrac%7B2%5E%7Bdifficulty%7D%7D%7BH%7D%20%3D%20%5Cfrac%7B2%5E%7B%5Clog_2%28N%29%20%2B%20join%5C_rate%2F10%7D%7D%7BH%7D%20%3D%20%5Cfrac%7BN%20%5Ccdot%202%5E%7Bjoin%5C_rate%2F10%7D%7D%7BH%7D
+"T_{PoW} \\approx \\frac{2^{difficulty}}{H} = \\frac{2^{\\log_2(N) + join\\_rate/10}}{H} = \\frac{N \\cdot 2^{join\\_rate/10}}{H}")  
 
 This scales linearly with network size and exponentially with join rate,
 providing effective protection against rapid identity creation.
@@ -93,17 +122,29 @@ protocol for NAT traversal:
 
 Used for discovering the public IP and port of a node:
 
-\(response \gets \Call{SendSTUNRequest}{server}\)
-\((public\_ip, public\_port) \gets \Call{ParseSTUNResponse}{response}\)
-**return** \((public\_ip, public\_port)\) **return** null
+![response \\gets
+\\Call{SendSTUNRequest}{server}](https://latex.codecogs.com/svg.latex?response%20%5Cgets%20%5CCall%7BSendSTUNRequest%7D%7Bserver%7D
+"response \\gets \\Call{SendSTUNRequest}{server}") ![(public\\\_ip,
+public\\\_port) \\gets
+\\Call{ParseSTUNResponse}{response}](https://latex.codecogs.com/svg.latex?%28public%5C_ip%2C%20public%5C_port%29%20%5Cgets%20%5CCall%7BParseSTUNResponse%7D%7Bresponse%7D
+"(public\\_ip, public\\_port) \\gets \\Call{ParseSTUNResponse}{response}")
+**return** ![(public\\\_ip,
+public\\\_port)](https://latex.codecogs.com/svg.latex?%28public%5C_ip%2C%20public%5C_port%29
+"(public\\_ip, public\\_port)") **return** null
 
 ### TURN (Traversal Using Relays around NAT)
 
 Used as a fallback for symmetric NATs:
 
-\(allocation \gets \Call{RequestTURNAllocation}{server}\)
-\((relayed\_ip, relayed\_port) \gets allocation\) **return**
-\((relayed\_ip, relayed\_port)\) **return** null
+![allocation \\gets
+\\Call{RequestTURNAllocation}{server}](https://latex.codecogs.com/svg.latex?allocation%20%5Cgets%20%5CCall%7BRequestTURNAllocation%7D%7Bserver%7D
+"allocation \\gets \\Call{RequestTURNAllocation}{server}")
+![(relayed\\\_ip, relayed\\\_port) \\gets
+allocation](https://latex.codecogs.com/svg.latex?%28relayed%5C_ip%2C%20relayed%5C_port%29%20%5Cgets%20allocation
+"(relayed\\_ip, relayed\\_port) \\gets allocation") **return**
+![(relayed\\\_ip,
+relayed\\\_port)](https://latex.codecogs.com/svg.latex?%28relayed%5C_ip%2C%20relayed%5C_port%29
+"(relayed\\_ip, relayed\\_port)") **return** null
 
 Justification: ICE, STUN, and TURN are well-established protocols for
 NAT traversal. They provide a comprehensive solution for nodes to
@@ -118,7 +159,10 @@ peers is adaptively managed based on network size and node capabilities.
 
 The peer list is implemented as a dynamic array of peer objects:
 
-\[\texttt{peer\_list} = [\text{peer}_1, \text{peer}_2, \dots, \text{peer}_n]\]
+  
+![\\texttt{peer\\\_list} = \[\\text{peer}\_1, \\text{peer}\_2, \\dots,
+\\text{peer}\_n\]](https://latex.codecogs.com/svg.latex?%5Ctexttt%7Bpeer%5C_list%7D%20%3D%20%5B%5Ctext%7Bpeer%7D_1%2C%20%5Ctext%7Bpeer%7D_2%2C%20%5Cdots%2C%20%5Ctext%7Bpeer%7D_n%5D
+"\\texttt{peer\\_list} = [\\text{peer}_1, \\text{peer}_2, \\dots, \\text{peer}_n]")  
 
 where each `peer` contains:
 
@@ -138,9 +182,13 @@ where each `peer` contains:
 
 The adaptive peer list size is calculated as follows:
 
-\[\text{optimal\_peer\_count} = \min(\max(20, \sqrt{N}), 100)\]
+  
+![\\text{optimal\\\_peer\\\_count} = \\min(\\max(20,
+\\sqrt{N}), 100)](https://latex.codecogs.com/svg.latex?%5Ctext%7Boptimal%5C_peer%5C_count%7D%20%3D%20%5Cmin%28%5Cmax%2820%2C%20%5Csqrt%7BN%7D%29%2C%20100%29
+"\\text{optimal\\_peer\\_count} = \\min(\\max(20, \\sqrt{N}), 100)")  
 
-Where \(N\) is the estimated network size.
+Where ![N](https://latex.codecogs.com/svg.latex?N "N") is the estimated
+network size.
 
 Justification: This formula balances connectivity and resource usage:
 
@@ -152,11 +200,17 @@ Justification: This formula balances connectivity and resource usage:
   - The maximum of 100 peers prevents excessive resource consumption for
     very large networks
 
-Proof of Effectiveness: Let \(D\) be the diameter of the network. In a
-random network with \(N\) nodes, each having \(k = \sqrt{N}\)
-connections, the diameter is approximately:
+Proof of Effectiveness: Let ![D](https://latex.codecogs.com/svg.latex?D
+"D") be the diameter of the network. In a random network with
+![N](https://latex.codecogs.com/svg.latex?N "N") nodes, each having ![k
+=
+\\sqrt{N}](https://latex.codecogs.com/svg.latex?k%20%3D%20%5Csqrt%7BN%7D
+"k = \\sqrt{N}") connections, the diameter is approximately:
 
-\[D \approx \frac{\log N}{\log k} = \frac{\log N}{\log \sqrt{N}} = 2\]
+  
+![D \\approx \\frac{\\log N}{\\log k} = \\frac{\\log N}{\\log \\sqrt{N}}
+= 2](https://latex.codecogs.com/svg.latex?D%20%5Capprox%20%5Cfrac%7B%5Clog%20N%7D%7B%5Clog%20k%7D%20%3D%20%5Cfrac%7B%5Clog%20N%7D%7B%5Clog%20%5Csqrt%7BN%7D%7D%20%3D%202
+"D \\approx \\frac{\\log N}{\\log k} = \\frac{\\log N}{\\log \\sqrt{N}} = 2")  
 
 This ensures that messages can reach any node in the network with high
 probability in just two hops, providing a good balance between
@@ -172,12 +226,18 @@ The reputation score is calculated based on:
 
   - Correctness: Ratio of valid to invalid messages propagated
 
-The reputation score \(R\) is updated after each interaction:
+The reputation score ![R](https://latex.codecogs.com/svg.latex?R "R") is
+updated after each interaction:
 
-\[R_{new} = (1 - \alpha) \cdot R_{old} + \alpha \cdot S\]
+  
+![R\_{new} = (1 - \\alpha) \\cdot R\_{old} + \\alpha \\cdot
+S](https://latex.codecogs.com/svg.latex?R_%7Bnew%7D%20%3D%20%281%20-%20%5Calpha%29%20%5Ccdot%20R_%7Bold%7D%20%2B%20%5Calpha%20%5Ccdot%20S
+"R_{new} = (1 - \\alpha) \\cdot R_{old} + \\alpha \\cdot S")  
 
-Where \(\alpha\) is a learning rate (e.g., 0.1) and \(S\) is the score
-of the current interaction.
+Where ![\\alpha](https://latex.codecogs.com/svg.latex?%5Calpha
+"\\alpha") is a learning rate (e.g., 0.1) and
+![S](https://latex.codecogs.com/svg.latex?S "S") is the score of the
+current interaction.
 
 Justification: This exponential moving average allows the reputation to
 adapt over time while preventing rapid fluctuations due to temporary
@@ -196,23 +256,34 @@ Each node maintains a content routing table that maps content categories
 to peers that are interested in or frequently share that type of
 content.
 
-\(category \gets \Call{ExtractCategory}{message}\)
-\(interested\_peers \gets routing\_table[category]\)
+![category \\gets
+\\Call{ExtractCategory}{message}](https://latex.codecogs.com/svg.latex?category%20%5Cgets%20%5CCall%7BExtractCategory%7D%7Bmessage%7D
+"category \\gets \\Call{ExtractCategory}{message}")
+![interested\\\_peers \\gets
+routing\\\_table\[category\]](https://latex.codecogs.com/svg.latex?interested%5C_peers%20%5Cgets%20routing%5C_table%5Bcategory%5D
+"interested\\_peers \\gets routing\\_table[category]")
 
 ### Adaptive Flooding
 
 When flooding is necessary, the protocol uses an adaptive approach to
 control the flood radius:
 
-\[\text{flood\_radius} = \left\lceil\log_2(\text{network\_size})\right\rceil\]
+  
+![\\text{flood\\\_radius} =
+\\left\\lceil\\log\_2(\\text{network\\\_size})\\right\\rceil](https://latex.codecogs.com/svg.latex?%5Ctext%7Bflood%5C_radius%7D%20%3D%20%5Cleft%5Clceil%5Clog_2%28%5Ctext%7Bnetwork%5C_size%7D%29%5Cright%5Crceil
+"\\text{flood\\_radius} = \\left\\lceil\\log_2(\\text{network\\_size})\\right\\rceil")  
 
 To further control network traffic, especially in large networks, we
 introduce a probabilistic forwarding mechanism:
 
-\[P(\text{forward}) = \min(1, \frac{C}{\text{network\_size}})\]
+  
+![P(\\text{forward}) = \\min(1,
+\\frac{C}{\\text{network\\\_size}})](https://latex.codecogs.com/svg.latex?P%28%5Ctext%7Bforward%7D%29%20%3D%20%5Cmin%281%2C%20%5Cfrac%7BC%7D%7B%5Ctext%7Bnetwork%5C_size%7D%7D%29
+"P(\\text{forward}) = \\min(1, \\frac{C}{\\text{network\\_size}})")  
 
-Where \(C\) is a constant (e.g., 1000) that can be adjusted based on
-desired network characteristics.
+Where ![C](https://latex.codecogs.com/svg.latex?C "C") is a constant
+(e.g., 1000) that can be adjusted based on desired network
+characteristics.
 
 Justification: This hybrid approach provides a balance between
 efficiency and reliability:
@@ -225,16 +296,23 @@ efficiency and reliability:
   - Probabilistic forwarding prevents network congestion in large
     networks
 
-Proof of Effectiveness: Let \(p\) be the probability of a node being
-interested in a particular category. The expected number of nodes
-reached through content-based routing is:
+Proof of Effectiveness: Let ![p](https://latex.codecogs.com/svg.latex?p
+"p") be the probability of a node being interested in a particular
+category. The expected number of nodes reached through content-based
+routing is:
 
-\[E(reached) = N \cdot (1 - (1-p)^k)\]
+  
+![E(reached) = N \\cdot (1 -
+(1-p)^k)](https://latex.codecogs.com/svg.latex?E%28reached%29%20%3D%20N%20%5Ccdot%20%281%20-%20%281-p%29%5Ek%29
+"E(reached) = N \\cdot (1 - (1-p)^k)")  
 
-Where \(N\) is the network size and \(k\) is the number of peers per
-node. This provides efficient routing for popular categories. For less
-popular categories, the adaptive flooding ensures message delivery with
-\(O(\log N)\) hops.
+Where ![N](https://latex.codecogs.com/svg.latex?N "N") is the network
+size and ![k](https://latex.codecogs.com/svg.latex?k "k") is the number
+of peers per node. This provides efficient routing for popular
+categories. For less popular categories, the adaptive flooding ensures
+message delivery with ![O(\\log
+N)](https://latex.codecogs.com/svg.latex?O%28%5Clog%20N%29 "O(\\log N)")
+hops.
 
 # Distributed Group Management
 
@@ -262,29 +340,53 @@ Each group is represented by a metadata object:
 
 The DHT supports the following operations:
 
-\(node \gets \Call{FindResponsibleNode}{key}\)
+![node \\gets
+\\Call{FindResponsibleNode}{key}](https://latex.codecogs.com/svg.latex?node%20%5Cgets%20%5CCall%7BFindResponsibleNode%7D%7Bkey%7D
+"node \\gets \\Call{FindResponsibleNode}{key}")
 
-\(node \gets \Call{FindResponsibleNode}{key}\) **return**
+![node \\gets
+\\Call{FindResponsibleNode}{key}](https://latex.codecogs.com/svg.latex?node%20%5Cgets%20%5CCall%7BFindResponsibleNode%7D%7Bkey%7D
+"node \\gets \\Call{FindResponsibleNode}{key}") **return**
 
-results \(\gets \emptyset\) node \(\gets\)
-FindResponsibleNode(Hash(tag)) results \(\gets\) results \(\cup\)
+results ![\\gets
+\\emptyset](https://latex.codecogs.com/svg.latex?%5Cgets%20%5Cemptyset
+"\\gets \\emptyset") node
+![\\gets](https://latex.codecogs.com/svg.latex?%5Cgets "\\gets")
+FindResponsibleNode(Hash(tag)) results
+![\\gets](https://latex.codecogs.com/svg.latex?%5Cgets "\\gets") results
+![\\cup](https://latex.codecogs.com/svg.latex?%5Ccup "\\cup")
 SendSearchRequest(node, tag) results
 
 Justification: Kademlia provides efficient key-value storage and
-retrieval with \(O(\log N)\) complexity, making it suitable for
-large-scale decentralized systems.
+retrieval with ![O(\\log
+N)](https://latex.codecogs.com/svg.latex?O%28%5Clog%20N%29 "O(\\log N)")
+complexity, making it suitable for large-scale decentralized systems.
 
 ## Group Consistency
 
 To maintain group consistency across the network:
 
-\(current\_metadata \gets \Call{DHT.Get}{group\_id}\)
-\(new\_metadata \gets \Call{ApplyUpdate}{current\_metadata, update}\)
-\(new\_metadata.version \gets update.version\)
-\(new\_metadata.last\_update \gets \Call{CurrentTimestamp}{}\)
-\(merged\_metadata \gets \Call{MergeUpdates}{current\_metadata, update}\)
-\(merged\_metadata.version \gets current\_metadata.version + 1\)
-\(merged\_metadata.last\_update \gets \Call{CurrentTimestamp}{}\)
+![current\\\_metadata \\gets
+\\Call{DHT.Get}{group\\\_id}](https://latex.codecogs.com/svg.latex?current%5C_metadata%20%5Cgets%20%5CCall%7BDHT.Get%7D%7Bgroup%5C_id%7D
+"current\\_metadata \\gets \\Call{DHT.Get}{group\\_id}")
+![new\\\_metadata \\gets \\Call{ApplyUpdate}{current\\\_metadata,
+update}](https://latex.codecogs.com/svg.latex?new%5C_metadata%20%5Cgets%20%5CCall%7BApplyUpdate%7D%7Bcurrent%5C_metadata%2C%20update%7D
+"new\\_metadata \\gets \\Call{ApplyUpdate}{current\\_metadata, update}")
+![new\\\_metadata.version \\gets
+update.version](https://latex.codecogs.com/svg.latex?new%5C_metadata.version%20%5Cgets%20update.version
+"new\\_metadata.version \\gets update.version")
+![new\\\_metadata.last\\\_update \\gets
+\\Call{CurrentTimestamp}{}](https://latex.codecogs.com/svg.latex?new%5C_metadata.last%5C_update%20%5Cgets%20%5CCall%7BCurrentTimestamp%7D%7B%7D
+"new\\_metadata.last\\_update \\gets \\Call{CurrentTimestamp}{}")
+![merged\\\_metadata \\gets \\Call{MergeUpdates}{current\\\_metadata,
+update}](https://latex.codecogs.com/svg.latex?merged%5C_metadata%20%5Cgets%20%5CCall%7BMergeUpdates%7D%7Bcurrent%5C_metadata%2C%20update%7D
+"merged\\_metadata \\gets \\Call{MergeUpdates}{current\\_metadata, update}")
+![merged\\\_metadata.version \\gets current\\\_metadata.version
++ 1](https://latex.codecogs.com/svg.latex?merged%5C_metadata.version%20%5Cgets%20current%5C_metadata.version%20%2B%201
+"merged\\_metadata.version \\gets current\\_metadata.version + 1")
+![merged\\\_metadata.last\\\_update \\gets
+\\Call{CurrentTimestamp}{}](https://latex.codecogs.com/svg.latex?merged%5C_metadata.last%5C_update%20%5Cgets%20%5CCall%7BCurrentTimestamp%7D%7B%7D
+"merged\\_metadata.last\\_update \\gets \\Call{CurrentTimestamp}{}")
 **raise** UnauthorizedUpdateException
 
 Justification: This approach ensures that only authorized updates are
@@ -375,30 +477,47 @@ creation and consumption.
 
 ## Message Propagation Algorithm
 
-\(peers \gets \Call{SelectPeersForPropagation}{message.group\_id}\)
+![peers \\gets
+\\Call{SelectPeersForPropagation}{message.group\\\_id}](https://latex.codecogs.com/svg.latex?peers%20%5Cgets%20%5CCall%7BSelectPeersForPropagation%7D%7Bmessage.group%5C_id%7D
+"peers \\gets \\Call{SelectPeersForPropagation}{message.group\\_id}")
 
-Where \(P(forward)\) is the probabilistic forwarding function defined
-earlier.
+Where ![P(forward)](https://latex.codecogs.com/svg.latex?P%28forward%29
+"P(forward)") is the probabilistic forwarding function defined earlier.
 
 ## Efficient Message Deduplication
 
 TeleLibre uses a Bloom filter for efficient storage and lookup of
 message IDs.
 
-Let \(m\) be the size of the bit array, \(k\) the number of hash
-functions, and \(n\) the number of elements to be inserted:
+Let ![m](https://latex.codecogs.com/svg.latex?m "m") be the size of the
+bit array, ![k](https://latex.codecogs.com/svg.latex?k "k") the number
+of hash functions, and ![n](https://latex.codecogs.com/svg.latex?n "n")
+the number of elements to be inserted:
 
-\[k = \left\lceil\frac{m}{n} \ln 2\right\rceil\]
+  
+![k = \\left\\lceil\\frac{m}{n}
+\\ln 2\\right\\rceil](https://latex.codecogs.com/svg.latex?k%20%3D%20%5Cleft%5Clceil%5Cfrac%7Bm%7D%7Bn%7D%20%5Cln%202%5Cright%5Crceil
+"k = \\left\\lceil\\frac{m}{n} \\ln 2\\right\\rceil")  
 
-The false positive probability \(p\) is approximately:
+The false positive probability
+![p](https://latex.codecogs.com/svg.latex?p "p") is approximately:
 
-\[p \approx \left(1 - e^{-kn/m}\right)^k\]
+  
+![p \\approx \\left(1 -
+e^{-kn/m}\\right)^k](https://latex.codecogs.com/svg.latex?p%20%5Capprox%20%5Cleft%281%20-%20e%5E%7B-kn%2Fm%7D%5Cright%29%5Ek
+"p \\approx \\left(1 - e^{-kn/m}\\right)^k")  
 
 Implementation:
 
-\(index \gets hash_i(item) \mod m\) \(bitArray[index] \gets 1\)
+![index \\gets hash\_i(item) \\mod
+m](https://latex.codecogs.com/svg.latex?index%20%5Cgets%20hash_i%28item%29%20%5Cmod%20m
+"index \\gets hash_i(item) \\mod m") ![bitArray\[index\]
+\\gets 1](https://latex.codecogs.com/svg.latex?bitArray%5Bindex%5D%20%5Cgets%201
+"bitArray[index] \\gets 1")
 
-\(index \gets hash_i(item) \mod m\) **return** false **return** true
+![index \\gets hash\_i(item) \\mod
+m](https://latex.codecogs.com/svg.latex?index%20%5Cgets%20hash_i%28item%29%20%5Cmod%20m
+"index \\gets hash_i(item) \\mod m") **return** false **return** true
 
 Justification: The Bloom filter provides constant-time insertions and
 lookups with a small false positive rate, making it ideal for efficient
@@ -409,12 +528,22 @@ message deduplication in a distributed system.
 While TeleLibre focuses on real-time communication, it also provides
 optional data persistence:
 
-\(key \gets \Call{GenerateStorageKey}{message}\)
-\(encrypted\_content \gets \Call{Encrypt}{message.content, group\_key}\)
+![key \\gets
+\\Call{GenerateStorageKey}{message}](https://latex.codecogs.com/svg.latex?key%20%5Cgets%20%5CCall%7BGenerateStorageKey%7D%7Bmessage%7D
+"key \\gets \\Call{GenerateStorageKey}{message}") ![encrypted\\\_content
+\\gets \\Call{Encrypt}{message.content,
+group\\\_key}](https://latex.codecogs.com/svg.latex?encrypted%5C_content%20%5Cgets%20%5CCall%7BEncrypt%7D%7Bmessage.content%2C%20group%5C_key%7D
+"encrypted\\_content \\gets \\Call{Encrypt}{message.content, group\\_key}")
 
-\(key \gets \Call{GenerateStorageKey}{message\_id, group\_id}\)
-\(encrypted\_content \gets \Call{DistributedStorage.Retrieve}{key}\)
-\(content \gets \Call{Decrypt}{encrypted\_content, group\_key}\)
+![key \\gets \\Call{GenerateStorageKey}{message\\\_id,
+group\\\_id}](https://latex.codecogs.com/svg.latex?key%20%5Cgets%20%5CCall%7BGenerateStorageKey%7D%7Bmessage%5C_id%2C%20group%5C_id%7D
+"key \\gets \\Call{GenerateStorageKey}{message\\_id, group\\_id}")
+![encrypted\\\_content \\gets
+\\Call{DistributedStorage.Retrieve}{key}](https://latex.codecogs.com/svg.latex?encrypted%5C_content%20%5Cgets%20%5CCall%7BDistributedStorage.Retrieve%7D%7Bkey%7D
+"encrypted\\_content \\gets \\Call{DistributedStorage.Retrieve}{key}")
+![content \\gets \\Call{Decrypt}{encrypted\\\_content,
+group\\\_key}](https://latex.codecogs.com/svg.latex?content%20%5Cgets%20%5CCall%7BDecrypt%7D%7Bencrypted%5C_content%2C%20group%5C_key%7D
+"content \\gets \\Call{Decrypt}{encrypted\\_content, group\\_key}")
 **return** content
 
 Justification: This approach allows for long-term storage of messages
@@ -428,12 +557,25 @@ servers.
 
 TeleLibre uses Ed25519 signatures for message authentication:
 
-\(data \gets message.message\_id || message.group\_id || message.sender\_id || message.timestamp || message.content\)
-\(signature \gets \Call{Ed25519.Sign}{data, private\_key}\)
-\(message.signature \gets signature\) **return** message
+![data \\gets message.message\\\_id || message.group\\\_id ||
+message.sender\\\_id || message.timestamp ||
+message.content](https://latex.codecogs.com/svg.latex?data%20%5Cgets%20message.message%5C_id%20%7C%7C%20message.group%5C_id%20%7C%7C%20message.sender%5C_id%20%7C%7C%20message.timestamp%20%7C%7C%20message.content
+"data \\gets message.message\\_id || message.group\\_id || message.sender\\_id || message.timestamp || message.content")
+![signature \\gets \\Call{Ed25519.Sign}{data,
+private\\\_key}](https://latex.codecogs.com/svg.latex?signature%20%5Cgets%20%5CCall%7BEd25519.Sign%7D%7Bdata%2C%20private%5C_key%7D
+"signature \\gets \\Call{Ed25519.Sign}{data, private\\_key}")
+![message.signature \\gets
+signature](https://latex.codecogs.com/svg.latex?message.signature%20%5Cgets%20signature
+"message.signature \\gets signature") **return** message
 
-\(data \gets message.message\_id || message.group\_id || message.sender\_id || message.timestamp || message.content\)
-\(public\_key \gets \Call{GetPublicKey}{message.sender\_id}\) **return**
+![data \\gets message.message\\\_id || message.group\\\_id ||
+message.sender\\\_id || message.timestamp ||
+message.content](https://latex.codecogs.com/svg.latex?data%20%5Cgets%20message.message%5C_id%20%7C%7C%20message.group%5C_id%20%7C%7C%20message.sender%5C_id%20%7C%7C%20message.timestamp%20%7C%7C%20message.content
+"data \\gets message.message\\_id || message.group\\_id || message.sender\\_id || message.timestamp || message.content")
+![public\\\_key \\gets
+\\Call{GetPublicKey}{message.sender\\\_id}](https://latex.codecogs.com/svg.latex?public%5C_key%20%5Cgets%20%5CCall%7BGetPublicKey%7D%7Bmessage.sender%5C_id%7D
+"public\\_key \\gets \\Call{GetPublicKey}{message.sender\\_id}")
+**return**
 
 Justification: Ed25519 provides fast signature generation and
 verification with strong security guarantees, making it suitable for
@@ -452,18 +594,33 @@ join the network.
 
 Nodes can form trust relationships:
 
-\(signature \gets \Call{Sign}{\text{"TRUST"} || peer\_id || trust\_level, private\_key}\)
+![signature \\gets \\Call{Sign}{\\text{"TRUST"} || peer\\\_id ||
+trust\\\_level,
+private\\\_key}](https://latex.codecogs.com/svg.latex?signature%20%5Cgets%20%5CCall%7BSign%7D%7B%5Ctext%7B%22TRUST%22%7D%20%7C%7C%20peer%5C_id%20%7C%7C%20trust%5C_level%2C%20private%5C_key%7D
+"signature \\gets \\Call{Sign}{\\text{\"TRUST\"} || peer\\_id || trust\\_level, private\\_key}")
 
-\(visited \gets \emptyset\) \(queue \gets [(source, 0)]\)
-\((node, depth) \gets queue.\Call{Dequeue}{}\) **return** true
-\(visited.\Call{Add}{node}\)
-\(queue.\Call{Enqueue}{(trusted\_peer, depth + 1)}\) **return** false
+![visited \\gets
+\\emptyset](https://latex.codecogs.com/svg.latex?visited%20%5Cgets%20%5Cemptyset
+"visited \\gets \\emptyset") ![queue \\gets
+\[(source, 0)\]](https://latex.codecogs.com/svg.latex?queue%20%5Cgets%20%5B%28source%2C%200%29%5D
+"queue \\gets [(source, 0)]") ![(node, depth) \\gets
+queue.\\Call{Dequeue}{}](https://latex.codecogs.com/svg.latex?%28node%2C%20depth%29%20%5Cgets%20queue.%5CCall%7BDequeue%7D%7B%7D
+"(node, depth) \\gets queue.\\Call{Dequeue}{}") **return** true
+![visited.\\Call{Add}{node}](https://latex.codecogs.com/svg.latex?visited.%5CCall%7BAdd%7D%7Bnode%7D
+"visited.\\Call{Add}{node}") ![queue.\\Call{Enqueue}{(trusted\\\_peer,
+depth
++ 1)}](https://latex.codecogs.com/svg.latex?queue.%5CCall%7BEnqueue%7D%7B%28trusted%5C_peer%2C%20depth%20%2B%201%29%7D
+"queue.\\Call{Enqueue}{(trusted\\_peer, depth + 1)}") **return** false
 
 ### Rate Limiting
 
 Implement rate limiting based on node age and reputation:
 
-\[\text{rate\_limit} = \text{base\_rate} \cdot \min(1, \frac{\text{node\_age}}{\text{age\_threshold}}) \cdot \text{reputation\_score}\]
+  
+![\\text{rate\\\_limit} = \\text{base\\\_rate} \\cdot \\min(1,
+\\frac{\\text{node\\\_age}}{\\text{age\\\_threshold}}) \\cdot
+\\text{reputation\\\_score}](https://latex.codecogs.com/svg.latex?%5Ctext%7Brate%5C_limit%7D%20%3D%20%5Ctext%7Bbase%5C_rate%7D%20%5Ccdot%20%5Cmin%281%2C%20%5Cfrac%7B%5Ctext%7Bnode%5C_age%7D%7D%7B%5Ctext%7Bage%5C_threshold%7D%7D%29%20%5Ccdot%20%5Ctext%7Breputation%5C_score%7D
+"\\text{rate\\_limit} = \\text{base\\_rate} \\cdot \\min(1, \\frac{\\text{node\\_age}}{\\text{age\\_threshold}}) \\cdot \\text{reputation\\_score}")  
 
 Justification: This multi-layered approach makes it computationally
 expensive to create many identities, leverages social connections to
@@ -474,15 +631,28 @@ establish trust, and limits the impact of potential Sybil nodes.
 In a decentralized system, content moderation is challenging. TeleLibre
 provides a framework for community-driven moderation:
 
-\(flag \gets \{message\_id, reason, reporter\_id, timestamp\}\)
-\(signature \gets \Call{Sign}{flag, reporter\_private\_key}\)
+![flag \\gets \\{message\\\_id, reason, reporter\\\_id,
+timestamp\\}](https://latex.codecogs.com/svg.latex?flag%20%5Cgets%20%5C%7Bmessage%5C_id%2C%20reason%2C%20reporter%5C_id%2C%20timestamp%5C%7D
+"flag \\gets \\{message\\_id, reason, reporter\\_id, timestamp\\}")
+![signature \\gets \\Call{Sign}{flag,
+reporter\\\_private\\\_key}](https://latex.codecogs.com/svg.latex?signature%20%5Cgets%20%5CCall%7BSign%7D%7Bflag%2C%20reporter%5C_private%5C_key%7D
+"signature \\gets \\Call{Sign}{flag, reporter\\_private\\_key}")
 
-\(moderation\_action \gets \{group\_id, message\_id, action, moderator\_id, timestamp\}\)
-\(signature \gets \Call{Sign}{moderation\_action, moderator\_private\_key}\)
+![moderation\\\_action \\gets \\{group\\\_id, message\\\_id, action,
+moderator\\\_id,
+timestamp\\}](https://latex.codecogs.com/svg.latex?moderation%5C_action%20%5Cgets%20%5C%7Bgroup%5C_id%2C%20message%5C_id%2C%20action%2C%20moderator%5C_id%2C%20timestamp%5C%7D
+"moderation\\_action \\gets \\{group\\_id, message\\_id, action, moderator\\_id, timestamp\\}")
+![signature \\gets \\Call{Sign}{moderation\\\_action,
+moderator\\\_private\\\_key}](https://latex.codecogs.com/svg.latex?signature%20%5Cgets%20%5CCall%7BSign%7D%7Bmoderation%5C_action%2C%20moderator%5C_private%5C_key%7D
+"signature \\gets \\Call{Sign}{moderation\\_action, moderator\\_private\\_key}")
 **raise** UnauthorizedModerationException
 
-\(flags \gets \Call{GetFlags}{message.message\_id}\)
-\(user\_preferences \gets \Call{GetUserPreferences}{}\) **return**
+![flags \\gets
+\\Call{GetFlags}{message.message\\\_id}](https://latex.codecogs.com/svg.latex?flags%20%5Cgets%20%5CCall%7BGetFlags%7D%7Bmessage.message%5C_id%7D
+"flags \\gets \\Call{GetFlags}{message.message\\_id}")
+![user\\\_preferences \\gets
+\\Call{GetUserPreferences}{}](https://latex.codecogs.com/svg.latex?user%5C_preferences%20%5Cgets%20%5CCall%7BGetUserPreferences%7D%7B%7D
+"user\\_preferences \\gets \\Call{GetUserPreferences}{}") **return**
 **return** message
 
 Justification: This approach allows for community-driven moderation
@@ -500,22 +670,35 @@ TeleLibre implements distributed load balancing techniques:
 
 Nodes dynamically adjust their message propagation behavior:
 
-\[P(\text{forward}) = \min(1, \frac{C}{\text{network\_size}}) \cdot \frac{\text{node\_resources}}{\text{avg\_network\_resources}}\]
+  
+![P(\\text{forward}) = \\min(1, \\frac{C}{\\text{network\\\_size}})
+\\cdot
+\\frac{\\text{node\\\_resources}}{\\text{avg\\\_network\\\_resources}}](https://latex.codecogs.com/svg.latex?P%28%5Ctext%7Bforward%7D%29%20%3D%20%5Cmin%281%2C%20%5Cfrac%7BC%7D%7B%5Ctext%7Bnetwork%5C_size%7D%7D%29%20%5Ccdot%20%5Cfrac%7B%5Ctext%7Bnode%5C_resources%7D%7D%7B%5Ctext%7Bavg%5C_network%5C_resources%7D%7D
+"P(\\text{forward}) = \\min(1, \\frac{C}{\\text{network\\_size}}) \\cdot \\frac{\\text{node\\_resources}}{\\text{avg\\_network\\_resources}}")  
 
-Where \(C\) is a constant and \(\text{node\_resources}\) represents the
-node’s available bandwidth and processing power.
+Where ![C](https://latex.codecogs.com/svg.latex?C "C") is a constant and
+![\\text{node\\\_resources}](https://latex.codecogs.com/svg.latex?%5Ctext%7Bnode%5C_resources%7D
+"\\text{node\\_resources}") represents the node’s available bandwidth
+and processing power.
 
 ### Content Caching
 
 All nodes participate in content caching to improve message retrieval:
 
-cache\_key \(\gets\) Hash(message.group\_id \(\|\) message.message\_id)
-ttl \(\gets\) CalculateTTL(message) cache.Put(cache\_key, message, ttl)
+cache\_key ![\\gets](https://latex.codecogs.com/svg.latex?%5Cgets
+"\\gets") Hash(message.group\_id
+![\\|](https://latex.codecogs.com/svg.latex?%5C%7C "\\|")
+message.message\_id) ttl
+![\\gets](https://latex.codecogs.com/svg.latex?%5Cgets "\\gets")
+CalculateTTL(message) cache.Put(cache\_key, message, ttl)
 
-cache\_key \(\gets\) Hash(group\_id \(\|\) message\_id)
+cache\_key ![\\gets](https://latex.codecogs.com/svg.latex?%5Cgets
+"\\gets") Hash(group\_id
+![\\|](https://latex.codecogs.com/svg.latex?%5C%7C "\\|") message\_id)
 cache.Get(cache\_key)
 
-base\_ttl \(\cdot\) PopularityFactor(message)
+base\_ttl ![\\cdot](https://latex.codecogs.com/svg.latex?%5Ccdot
+"\\cdot") PopularityFactor(message)
 
 Justification: Adaptive message propagation prevents network congestion,
 while content caching reduces redundant data transfers and improves
@@ -525,9 +708,16 @@ response times.
 
 Nodes use a smart peer selection strategy to maintain network health:
 
-\[\text{peer\_score} = w_1 \cdot \text{reputation} + w_2 \cdot \frac{1}{\text{response\_time}} + w_3 \cdot \text{content\_relevance}\]
+  
+![\\text{peer\\\_score} = w\_1 \\cdot \\text{reputation} + w\_2 \\cdot
+\\frac{1}{\\text{response\\\_time}} + w\_3 \\cdot
+\\text{content\\\_relevance}](https://latex.codecogs.com/svg.latex?%5Ctext%7Bpeer%5C_score%7D%20%3D%20w_1%20%5Ccdot%20%5Ctext%7Breputation%7D%20%2B%20w_2%20%5Ccdot%20%5Cfrac%7B1%7D%7B%5Ctext%7Bresponse%5C_time%7D%7D%20%2B%20w_3%20%5Ccdot%20%5Ctext%7Bcontent%5C_relevance%7D
+"\\text{peer\\_score} = w_1 \\cdot \\text{reputation} + w_2 \\cdot \\frac{1}{\\text{response\\_time}} + w_3 \\cdot \\text{content\\_relevance}")  
 
-Where \(w_1\), \(w_2\), and \(w_3\) are weighting factors that sum to 1.
+Where ![w\_1](https://latex.codecogs.com/svg.latex?w_1 "w_1"),
+![w\_2](https://latex.codecogs.com/svg.latex?w_2 "w_2"), and
+![w\_3](https://latex.codecogs.com/svg.latex?w_3 "w_3") are weighting
+factors that sum to 1.
 
 Justification: This scoring system balances multiple factors to ensure a
 well-connected and efficient network.
@@ -538,13 +728,26 @@ well-connected and efficient network.
 
 TeleLibre implements a partition detection and recovery mechanism:
 
-\(known\_nodes \gets \Call{GetKnownNodes}{}\)
-\(reachable\_nodes \gets \Call{ProbeNodes}{known\_nodes}\)
-\(new\_peers \gets \Call{DiscoverNewPeers}{}\)
-\(\Call{ConnectToPeers}{new\_peers}\) \(\Call{SyncNetworkState}{}\)
+![known\\\_nodes \\gets
+\\Call{GetKnownNodes}{}](https://latex.codecogs.com/svg.latex?known%5C_nodes%20%5Cgets%20%5CCall%7BGetKnownNodes%7D%7B%7D
+"known\\_nodes \\gets \\Call{GetKnownNodes}{}") ![reachable\\\_nodes
+\\gets
+\\Call{ProbeNodes}{known\\\_nodes}](https://latex.codecogs.com/svg.latex?reachable%5C_nodes%20%5Cgets%20%5CCall%7BProbeNodes%7D%7Bknown%5C_nodes%7D
+"reachable\\_nodes \\gets \\Call{ProbeNodes}{known\\_nodes}")
+![new\\\_peers \\gets
+\\Call{DiscoverNewPeers}{}](https://latex.codecogs.com/svg.latex?new%5C_peers%20%5Cgets%20%5CCall%7BDiscoverNewPeers%7D%7B%7D
+"new\\_peers \\gets \\Call{DiscoverNewPeers}{}")
+![\\Call{ConnectToPeers}{new\\\_peers}](https://latex.codecogs.com/svg.latex?%5CCall%7BConnectToPeers%7D%7Bnew%5C_peers%7D
+"\\Call{ConnectToPeers}{new\\_peers}")
+![\\Call{SyncNetworkState}{}](https://latex.codecogs.com/svg.latex?%5CCall%7BSyncNetworkState%7D%7B%7D
+"\\Call{SyncNetworkState}{}")
 
-\(latest\_metadata \gets \Call{DHT.Get}{group.id}\)
-\(\Call{UpdateLocalGroupState}{group, latest\_metadata}\)
+![latest\\\_metadata \\gets
+\\Call{DHT.Get}{group.id}](https://latex.codecogs.com/svg.latex?latest%5C_metadata%20%5Cgets%20%5CCall%7BDHT.Get%7D%7Bgroup.id%7D
+"latest\\_metadata \\gets \\Call{DHT.Get}{group.id}")
+![\\Call{UpdateLocalGroupState}{group,
+latest\\\_metadata}](https://latex.codecogs.com/svg.latex?%5CCall%7BUpdateLocalGroupState%7D%7Bgroup%2C%20latest%5C_metadata%7D
+"\\Call{UpdateLocalGroupState}{group, latest\\_metadata}")
 
 Justification: This approach allows the network to detect and recover
 from partitions, ensuring eventual consistency of group metadata across
@@ -592,7 +795,11 @@ We chose a mathematical modeling approach for several reasons:
 
 Our simulation used the following parameters:
 
-  - Network Sizes: \(10^3\), \(10^4\), \(10^5\), and \(10^6\) nodes
+  - Network Sizes: ![10^3](https://latex.codecogs.com/svg.latex?10%5E3
+    "10^3"), ![10^4](https://latex.codecogs.com/svg.latex?10%5E4
+    "10^4"), ![10^5](https://latex.codecogs.com/svg.latex?10%5E5
+    "10^5"), and ![10^6](https://latex.codecogs.com/svg.latex?10%5E6
+    "10^6") nodes
 
   - Message Rate: 100 messages per second (for bandwidth calculations)
 
@@ -605,33 +812,47 @@ Our simulation used the following parameters:
 
 ### Key Assumptions and Justifications
 
-1.  Message Propagation Model:
-    \[\text{Propagation Time} = \text{Hops} \times \text{Latency per Hop}\]
-    Where:
-    \[\text{Hops} = \left\lceil\frac{\log(\text{Network Size})}{\log(\text{Average Connections})}\right\rceil\]
+1.  Message Propagation Model:   
+    ![\\text{Propagation Time} = \\text{Hops} \\times \\text{Latency per
+    Hop}](https://latex.codecogs.com/svg.latex?%5Ctext%7BPropagation%20Time%7D%20%3D%20%5Ctext%7BHops%7D%20%5Ctimes%20%5Ctext%7BLatency%20per%20Hop%7D
+    "\\text{Propagation Time} = \\text{Hops} \\times \\text{Latency per Hop}")  
+        Where:   
+    ![\\text{Hops} = \\left\\lceil\\frac{\\log(\\text{Network
+    Size})}{\\log(\\text{Average
+    Connections})}\\right\\rceil](https://latex.codecogs.com/svg.latex?%5Ctext%7BHops%7D%20%3D%20%5Cleft%5Clceil%5Cfrac%7B%5Clog%28%5Ctext%7BNetwork%20Size%7D%29%7D%7B%5Clog%28%5Ctext%7BAverage%20Connections%7D%29%7D%5Cright%5Crceil
+    "\\text{Hops} = \\left\\lceil\\frac{\\log(\\text{Network Size})}{\\log(\\text{Average Connections})}\\right\\rceil")  
     
     Justification: This model is based on the concept of network
     diameter in random graphs. The logarithmic relationship is
     well-established in network theory for well-connected graphs.
 
-2.  Bandwidth Usage Model:
-    \[\text{Bandwidth per Node} = \frac{\text{Message Rate} \times \text{Message Size} \times \log_2(\text{Network Size})}{\text{Network Size}}\]
+2.  Bandwidth Usage Model:   
+    ![\\text{Bandwidth per Node} = \\frac{\\text{Message Rate} \\times
+    \\text{Message Size} \\times \\log\_2(\\text{Network
+    Size})}{\\text{Network
+    Size}}](https://latex.codecogs.com/svg.latex?%5Ctext%7BBandwidth%20per%20Node%7D%20%3D%20%5Cfrac%7B%5Ctext%7BMessage%20Rate%7D%20%5Ctimes%20%5Ctext%7BMessage%20Size%7D%20%5Ctimes%20%5Clog_2%28%5Ctext%7BNetwork%20Size%7D%29%7D%7B%5Ctext%7BNetwork%20Size%7D%7D
+    "\\text{Bandwidth per Node} = \\frac{\\text{Message Rate} \\times \\text{Message Size} \\times \\log_2(\\text{Network Size})}{\\text{Network Size}}")  
     
     Justification: This model accounts for the efficiency gains of our
     content-based routing. The logarithmic factor represents the
     overhead of maintaining routing information, which grows
     sub-linearly with network size.
 
-3.  Churn Resilience Model:
-    \[\text{Delivery Success Rate} = (1 - \text{Churn Rate})^2\]
+3.  Churn Resilience Model:   
+    ![\\text{Delivery Success Rate} = (1 - \\text{Churn
+    Rate})^2](https://latex.codecogs.com/svg.latex?%5Ctext%7BDelivery%20Success%20Rate%7D%20%3D%20%281%20-%20%5Ctext%7BChurn%20Rate%7D%29%5E2
+    "\\text{Delivery Success Rate} = (1 - \\text{Churn Rate})^2")  
     
     Justification: This model assumes that both the sender and receiver
     need to be active for successful delivery. It’s a conservative
     estimate that doesn’t account for message caching and retry
     mechanisms, which would likely improve real-world performance.
 
-4.  Partition Recovery Model:
-    \[\text{Recovery Time} = \log_2(\text{Partitioned Nodes}) \times \text{Time per Doubling}\]
+4.  Partition Recovery Model:   
+    ![\\text{Recovery Time} = \\log\_2(\\text{Partitioned Nodes})
+    \\times \\text{Time per
+    Doubling}](https://latex.codecogs.com/svg.latex?%5Ctext%7BRecovery%20Time%7D%20%3D%20%5Clog_2%28%5Ctext%7BPartitioned%20Nodes%7D%29%20%5Ctimes%20%5Ctext%7BTime%20per%20Doubling%7D
+    "\\text{Recovery Time} = \\log_2(\\text{Partitioned Nodes}) \\times \\text{Time per Doubling}")  
     
     Justification: This logarithmic model is based on the assumption
     that information spreads exponentially during the recovery process,
@@ -664,12 +885,12 @@ combination of content-based routing and adaptive flooding mechanisms.
 
 <div id="tab:bandwidth_usage">
 
-| Network Size | Bandwidth Usage per Node |
-| :----------: | :----------------------: |
-|    1,000     |        0.97 KB/s         |
-|    10,000    |        0.13 KB/s         |
-|   100,000    |        0.02 KB/s         |
-|  1,000,000   |     \(<\) 0.01 KB/s      |
+| Network Size |                    Bandwidth Usage per Node                    |
+| :----------: | :------------------------------------------------------------: |
+|    1,000     |                           0.97 KB/s                            |
+|    10,000    |                           0.13 KB/s                            |
+|   100,000    |                           0.02 KB/s                            |
+|  1,000,000   | ![\<](https://latex.codecogs.com/svg.latex?%3C "\<") 0.01 KB/s |
 
 Bandwidth Usage per Node (for 100 messages/second)
 
