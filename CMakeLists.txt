@@ -5,14 +5,34 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories(include)
 
+# Find required packages
+find_package(OpenSSL REQUIRED)
+find_package(Boost COMPONENTS system REQUIRED)
+
+# Add executables
 add_executable(telelibre 
     src/main.cpp 
-    # Add other source files here
+    src/KeyManagement.cpp
+    src/Networking.cpp
+    src/Message.cpp
+    src/RoutingTable.cpp
+    src/BloomFilter.cpp
 )
 
-# Example: Link with external libraries if needed
-# target_link_libraries(telelibre 
-#     OpenSSL::SSL 
-#     OpenSSL::Crypto 
-#     Boost::asio 
-# )
+add_executable(seed_node
+    src/seed_node.cpp
+    src/Message.cpp  # Add this line to include Message.cpp
+)
+
+# Link libraries
+target_link_libraries(telelibre 
+    OpenSSL::SSL 
+    OpenSSL::Crypto 
+    Boost::system
+    pthread
+)
+
+target_link_libraries(seed_node
+    Boost::system
+    pthread
+)
