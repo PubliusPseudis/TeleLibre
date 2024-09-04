@@ -1,4 +1,6 @@
 #include "Networking.h"
+#include "Debug.h"
+#include "Packet.h"
 #include "PeerConnection.h"
 #include <iostream>
 #include <boost/bind/bind.hpp>
@@ -27,49 +29,63 @@ void PeerConnection::start() {
 }
 
 void PeerConnection::sendMessage(const Message& msg) {
-    auto self(shared_from_this());
-    std::string serialized = msg.is_acknowledgment ? msg.content : msg.serialize();
-    boost::asio::async_write(socket_, boost::asio::buffer(serialized + "\n"),
-        [this, self, serialized](boost::system::error_code ec, std::size_t) {
-            if (ec) {
-                std::cout << "Error sending message to " << server_ << ":" << port_ << ": " << ec.message() << std::endl;
-            } else {
-                std::cout << "Message sent to " << server_ << ":" << port_ << ": " << serialized << std::endl;
-            }
-        });
+    auto packets = msg.serialize();
+    for (const auto& packet : packets) {
+        auto serialized = serializePacket(packet);
+        Debug::log("Sending packet of size " + std::to_string(serialized.size()) + " bytes");
+        boost::asio::async_write(socket_, boost::asio::buffer(serialized),
+            [this, self = shared_from_this()](boost::system::error_code ec, std::size_t bytes_transferred) {
+                if (ec) {
+                    Debug::log("Error sending message: " + ec.message());
+                } else {
+                    Debug::log("Successfully sent " + std::to_string(bytes_transferred) + " bytes");
+                }
+            });
+    }
 }
+
 
 void PeerConnection::receiveMessage() {
     auto self(shared_from_this());
-    boost::asio::async_read_until(socket_, receive_buffer_, "\n",
+    boost::asio::async_read(socket_, receive_buffer_, boost::asio::transfer_exactly(16),
         [this, self](boost::system::error_code ec, std::size_t length) {
             if (!ec) {
-                std::string serialized;
-                std::istream is(&receive_buffer_);
-                std::getline(is, serialized);
-                std::cout << "Received from " << server_ << ":" << port_ << ": " << serialized << std::endl;
+                std::vector<uint8_t> header(boost::asio::buffers_begin(receive_buffer_.data()),
+                                            boost::asio::buffers_begin(receive_buffer_.data()) + 16);
+                receive_buffer_.consume(16);
 
-                try {
-                    Message msg = Message::deserialize(serialized);
-                    if (msg.message_id.empty()) {
-                        // This is a system message
-                        std::cout << "Received system message: " << msg.content << std::endl;
-                    } else {
-                        std::cout << "Received message: ID=" << msg.message_id 
-                                  << ", Group=" << msg.group_id 
-                                  << ", Sender=" << msg.sender_id 
-                                  << ", Content=" << msg.content << std::endl;
-                    }
-                    if (message_handler_) {
-                        message_handler_(msg);
-                    }
-                } catch (const std::exception& e) {
-                    std::cout << "Error parsing message from " << server_ << ":" << port_ << ": " << e.what() << std::endl;
-                }
+                uint32_t payload_length = (static_cast<uint32_t>(header[4]) << 24) |
+                                          (static_cast<uint32_t>(header[5]) << 16) |
+                                          (static_cast<uint32_t>(header[6]) << 8) |
+                                          static_cast<uint32_t>(header[7]);
 
-                receiveMessage();
+                boost::asio::async_read(socket_, receive_buffer_, boost::asio::transfer_exactly(payload_length),
+                    [this, self, header](boost::system::error_code ec, std::size_t length) {
+                        if (!ec) {
+                            std::vector<uint8_t> payload(boost::asio::buffers_begin(receive_buffer_.data()),
+                                                         boost::asio::buffers_begin(receive_buffer_.data()) + length);
+                            receive_buffer_.consume(length);
+
+                            std::vector<uint8_t> packet_data = header;
+                            packet_data.insert(packet_data.end(), payload.begin(), payload.end());
+
+                            try {
+                                Packet packet = deserializePacket(packet_data);
+                                Message msg = Message::deserialize({packet});
+                                if (message_handler_) {
+                                    message_handler_(msg);
+                                }
+                            } catch (const std::exception& e) {
+                                Debug::log("Error parsing message: " + std::string(e.what()));
+                            }
+
+                            receiveMessage();  // Continue receiving messages
+                        } else {
+                            Debug::log("Error receiving message payload: " + ec.message());
+                        }
+                    });
             } else {
-                std::cout << "Error receiving message from " << server_ << ":" << port_ << ": " << ec.message() << std::endl;
+                Debug::log("Error receiving message header: " + ec.message());
             }
         });
 }
@@ -108,12 +124,12 @@ void Network::bootstrapNetwork(const std::vector<std::string>& seedNodes) {
 }
 
 void Network::sendMessage(const Message& msg) {
-    if (bloom_filter_.probably_contains(msg.message_id)) {
-        std::cout << "Message already seen, not forwarding: " << msg.message_id << std::endl;
+    if (bloom_filter_.probably_contains(msg.getMessageId())) {
+        std::cout << "Message already seen, not forwarding: " << msg.getMessageId() << std::endl;
         return;
     }
 
-    bloom_filter_.add(msg.message_id);
+    bloom_filter_.add(msg.getMessageId());
     forwardMessage(msg);
 }
 
@@ -206,39 +222,48 @@ void Network::startPeriodicPeerListUpdate() {
 
 
 void Network::handleIncomingMessage(const Message& msg) {
-    if (msg.is_acknowledgment) {
-        std::cout << "Received acknowledgment: " << msg.content << std::endl;
-        return;  // Don't process or forward acknowledgments
-    }
-
-    if (msg.content.empty()) {
-        std::cout << "Received empty message, ignoring." << std::endl;
+    if (msg.isAcknowledgment()) {
+        Debug::log("Received acknowledgment: " + msg.getContent());
         return;
     }
 
-    // Handle regular messages
-    if (bloom_filter_.probably_contains(msg.message_id)) {
-        std::cout << "Message already seen, not processing: " << msg.message_id << std::endl;
+    if (msg.getMessageId().empty()) {
+        Debug::log("Received system message: " + msg.getContent());
+        if (msg.getContent().substr(0, 9) == "PeerList:") {
+            updatePeerList(msg.getContent().substr(10));
+        } else if (msg.getContent() == "RequestPeers") {
+            sendPeerList();
+        }
         return;
     }
 
-    bloom_filter_.add(msg.message_id);
+    if (msg.getContent().empty()) {
+        Debug::log("Received empty message, ignoring.");
+        return;
+    }
 
-    std::cout << "Processing message: " << msg.content << std::endl;
-    // Forward the message
+    if (bloom_filter_.probably_contains(msg.getMessageId())) {
+        Debug::log("Message already seen, not processing: " + msg.getMessageId());
+        return;
+    }
+
+    bloom_filter_.add(msg.getMessageId());
+
+    Debug::log("Processing message: " + msg.getContent());
     forwardMessage(msg);
-
-    // Send acknowledgment
     sendAcknowledgment(msg);
 }
+
+
+
 void Network::sendAcknowledgment(const Message& msg) {
     Message ack;
-    ack.content = "Message received";
-    ack.is_acknowledgment = true;
+    ack.setContent("Message received");
+    ack.setAsAcknowledgment(true);
 
     // Send acknowledgment to the sender
     for (const auto& peer : peers_) {
-        if (peer->getAddress() == msg.sender_id) {
+        if (peer->getAddress() == msg.getSenderId()) {
             peer->sendMessage(ack);
             break;
         }
@@ -247,7 +272,7 @@ void Network::sendAcknowledgment(const Message& msg) {
 
 // Add this new method
 void Network::forwardMessage(const Message& msg) {
-    auto peers = routing_table_.getPeersForCategory(msg.group_id);
+    auto peers = routing_table_.getPeersForCategory(msg.getGroupId());
     if (!peers.empty()) {
         for (const auto& peer : peers) {
             peer->sendMessage(msg);

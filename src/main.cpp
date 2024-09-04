@@ -6,6 +6,7 @@
 #include "KeyManagement.h"
 #include "Networking.h"
 #include "Message.h"
+#include "Debug.h"
 
 void runKeyManagementTest() {
     std::cout << "\n--- Key Management Test ---\n";
@@ -49,27 +50,39 @@ void runKeyManagementTest() {
 void runNetworkingTest(boost::asio::io_context& io_context) {
     std::cout << "\n--- Networking Test ---\n";
     try {
+        Debug::log("--- Networking Test ---");
+        boost::asio::io_context io_context;
         Network network(io_context, 1000);  // Assume an estimated network size of 1000 nodes
-        std::vector<std::string> seedNodes = {"127.0.0.1:6881", "127.0.0.1:6882"};
-        network.bootstrapNetwork(seedNodes);
-        network.startPeriodicPeerListUpdate();
 
-        // Send test messages
+        std::vector<std::string> seedNodes = {"127.0.0.1:6881", "127.0.0.1:6882"};
+        Debug::log("Bootstrapping network with seed nodes: " + seedNodes[0] + ", " + seedNodes[1]);
+        network.bootstrapNetwork(seedNodes);
+
+        // Send test messages with delays
         Message testMsg1("test_group", "test_sender", "This is a test message");
+        Debug::log("Sending test message 1");
         network.sendMessage(testMsg1);
-        std::cout << "Sent test message 1" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         Message testMsg2("test_group", "test_sender", "This is a second test message");
+        Debug::log("Sending test message 2");
         network.sendMessage(testMsg2);
-        std::cout << "Sent test message 2" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        Message requestPeersMsg("", "", "RequestPeers");
+        Debug::log("Sending RequestPeers message");
+        network.sendMessage(requestPeersMsg);
 
         // Run the io_context for a short time to allow for message processing
         boost::asio::steady_timer timer(io_context, boost::asio::chrono::seconds(5));
         timer.async_wait([&io_context](const boost::system::error_code&) { 
-            std::cout << "Stopping io_context after 5 seconds" << std::endl;
+            Debug::log("Stopping io_context after 5 seconds");
             io_context.stop(); 
         });
+
+        Debug::log("Running io_context");
         io_context.run();
+
     } catch (const std::exception& e) {
         std::cerr << "Error in networking test: " << e.what() << std::endl;
     }
@@ -85,6 +98,8 @@ void runProofOfWorkTest() {
 }
 
 int main() {
+    Debug::enabled = true; // Enable debug output
+
     std::cout << "TeleLibre: Decentralized Meme Sharing Protocol" << std::endl;
 
     runKeyManagementTest();

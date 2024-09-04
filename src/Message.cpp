@@ -1,4 +1,5 @@
 #include "Message.h"
+#include "Debug.h"
 #include <sstream>
 #include <iomanip>
 #include <random>
@@ -10,40 +11,31 @@ Message::Message(const std::string& group_id, const std::string& sender_id, cons
     : message_id(generateMessageId()), group_id(group_id), sender_id(sender_id),
       timestamp(std::time(nullptr)), content(content), ttl(10), is_acknowledgment(false) {}
 
-std::string Message::serialize() const {
+std::vector<Packet> Message::serialize() const {
     std::stringstream ss;
     ss << message_id << "|" << group_id << "|" << sender_id << "|"
        << timestamp << "|" << content << "|" << signature << "|" << ttl;
-    return ss.str();
+    std::string serialized = ss.str();
+    
+    // For simplicity, we're creating a single packet. In a real-world scenario,
+    // you might want to split large messages into multiple packets.
+    return {createPacket(serialized, 0)};
 }
 
-Message Message::deserialize(const std::string& serialized) {
+Message Message::deserialize(const std::vector<Packet>& packets) {
+    if (packets.empty()) {
+        throw std::runtime_error("No packets to deserialize");
+    }
+
+    // For now, we're assuming a single packet. In the future, you might want to
+    // handle multiple packets and reassemble them.
+    std::string serialized(packets[0].payload.begin(), packets[0].payload.end());
+    
+    Debug::log("Deserializing message: " + serialized);
     std::istringstream ss(serialized);
     Message msg;
-    std::string line;
-    
-    // Check if it's a simple acknowledgment
-    if (serialized == "Message received") {
-        msg.setContent(serialized);
-        msg.setAsAcknowledgment(true);
-        return msg;
-    }
-    
-    // Find the start of the actual message (should start with a valid message_id)
-    while (std::getline(ss, line, '|')) {
-        if (line.length() == 32 && line.find_first_not_of("0123456789abcdef") == std::string::npos) {
-            msg.message_id = line;
-            break;
-        }
-    }
 
-    if (msg.message_id.empty()) {
-        // This might be a system message
-        msg.setContent(serialized);
-        msg.setAsAcknowledgment(true);
-        return msg;
-    }
-
+    std::getline(ss, msg.message_id, '|');
     std::getline(ss, msg.group_id, '|');
     std::getline(ss, msg.sender_id, '|');
     std::string timestamp_str;
@@ -53,12 +45,18 @@ Message Message::deserialize(const std::string& serialized) {
     ss >> msg.ttl;
 
     if (ss.fail()) {
+        Debug::log("Failed to parse message");
         throw std::runtime_error("Failed to parse message: " + serialized);
     }
 
     msg.timestamp = std::stoll(timestamp_str);
+    Debug::log("Successfully parsed message");
     return msg;
 }
+
+
+
+
 
 std::string Message::generateMessageId() {
     static std::random_device rd;
@@ -72,9 +70,18 @@ std::string Message::generateMessageId() {
     return uuid;
 }
 
-// Add these new methods to align with the updated Message.h
-
 void Message::setContent(const std::string& new_content) {
     content = new_content;
 }
 
+void Message::setSignature(const std::string& sig) {
+    signature = sig;
+}
+
+void Message::setTTL(int new_ttl) {
+    ttl = new_ttl;
+}
+
+void Message::setAsAcknowledgment(bool is_ack) {
+    is_acknowledgment = is_ack;
+}

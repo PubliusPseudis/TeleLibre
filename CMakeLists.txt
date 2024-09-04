@@ -17,11 +17,15 @@ add_executable(telelibre
     src/Message.cpp
     src/RoutingTable.cpp
     src/BloomFilter.cpp
+    src/Debug.cpp
+    src/Packet.cpp
 )
 
 add_executable(seed_node
     src/seed_node.cpp
-    src/Message.cpp  # Add this line to include Message.cpp
+    src/Message.cpp
+    src/Debug.cpp
+    src/Packet.cpp
 )
 
 # Link libraries
